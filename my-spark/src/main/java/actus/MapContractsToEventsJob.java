@@ -118,10 +118,6 @@ public class MapContractsToEventsJob {
     
  // DataFrames can be saved as Parquet files, maintaining the schema information.
  	chachedEvents.write().parquet(outputPath + "events.parquet");
- 	chachedEvents.write().format("parquet").save(outputPath + "events2.parquet");
- 	chachedEvents.write().format("csv").save(outputPath + "events.csv");
-
-
  	
 //Data is now ready and it's possible to query the data:
  	 
