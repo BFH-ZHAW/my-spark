@@ -27,7 +27,7 @@ import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Iterator;
 
-public class MapContractsToEventsJob {
+public class MapContractsToEventsWriteJob {
 
   public static void main(String[] args) {
     if (args.length < 1) {
@@ -94,7 +94,7 @@ public class MapContractsToEventsJob {
     
 	// import and map contract data to contract event results
     JavaRDD<String> contractFile = sparkSession.read().textFile(contractsFile).javaRDD(); // contract data
-    JavaRDD<Row> events = contractFile.map(new ContractToEventsFunction(_t0, riskFactorRDD.collectAsMap()));
+    JavaRDD<Row> events = contractFile.map(new ContractToEventsWriteFunction(_t0, riskFactorRDD.collectAsMap()));
    // JavaRDD<Row> events = contractFile.map(new ContractToEventsFunction(t0, riskFactors));
     
     
@@ -168,7 +168,7 @@ public class MapContractsToEventsJob {
     }
     
  // DataFrames can be saved as Parquet files, maintaining the schema information.
- 	cachedEvents.write().parquet(outputPath + "events.parquet");
+ //	cachedEvents.write().parquet(outputPath + "events.parquet");
  	
 //Data is now ready and it's possible to query the data:
  	 
