@@ -5,4 +5,4 @@
  * @author Bruce
  *
  */
-package actus;
+package com.bruttel.actus;

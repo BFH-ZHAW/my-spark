@@ -1,4 +1,4 @@
-package actus;
+package com.bruttel.actus;
 
 import java.util.Arrays;
 
@@ -47,7 +47,8 @@ public class TestActusJob {
 
   private static final Function<String, Row> CONTRACT_MAPPER =
       new Function<String, Row>() {
-        public Row call(String s) throws Exception {
+        @Override
+		public Row call(String s) throws Exception {
           
           // map input file to contract model 
           // (note, s is a single line of the input file)

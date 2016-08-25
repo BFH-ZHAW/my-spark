@@ -1,4 +1,4 @@
-package actus;
+package com.bruttel.actus;
 
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.SparkConf;
@@ -8,8 +8,6 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.PairFunction;
 
 import org.apache.spark.sql.SQLContext;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.StructField;
@@ -27,7 +25,6 @@ import javax.time.calendar.ZonedDateTime;
 import scala.Tuple2;
 import java.util.Map;
 import java.util.Arrays;
-import java.util.Iterator;
 
 public class ExperimentalMapContractsToEventsJob {
 
@@ -70,7 +67,8 @@ public class ExperimentalMapContractsToEventsJob {
     JavaRDD<String> riskFactorFile = sparkContext.textFile(args[1]); // contract data
     JavaPairRDD<String, String[]> riskFactorRDD = riskFactorFile.mapToPair(
       new PairFunction<String, String, String[]>() {
-        public Tuple2<String, String[]> call(String s) {
+        @Override
+		public Tuple2<String, String[]> call(String s) {
           String[] temp = s.split(";");
           return new Tuple2(temp[0], temp);
         }

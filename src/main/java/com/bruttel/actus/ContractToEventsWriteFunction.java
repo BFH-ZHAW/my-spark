@@ -1,11 +1,14 @@
-package actus;
+package com.bruttel.actus;
 
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.JavaRDD;
-import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
-
+import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
 import org.actus.contracttypes.PrincipalAtMaturity;
 import org.actus.models.PrincipalAtMaturityModel;
 import org.actus.util.time.EventSeries;
@@ -22,10 +25,12 @@ import org.actus.misc.riskfactormodels.SimpleForeignExchangeRate;
 import javax.time.calendar.ZonedDateTime;
 
 import java.lang.reflect.Array;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
-public class ContractToEventsFunction implements Function<String,Row> {
+public class ContractToEventsWriteFunction implements Function<String,Row> {
 //  Broadcast<ZonedDateTime> t0;
 //  Broadcast<Map<String,String[]>> riskFactors;
 	  ZonedDateTime t0;
@@ -33,7 +38,7 @@ public class ContractToEventsFunction implements Function<String,Row> {
   
 //  public ContractToEventsFunction(Broadcast<ZonedDateTime> t0,
 //                                  Broadcast<Map<String,String[]>> riskFactors) {
-	  public ContractToEventsFunction(ZonedDateTime t0,
+	  public ContractToEventsWriteFunction(ZonedDateTime t0,
               Map<String,String[]> riskFactors) {
    this.t0 = t0;
     this.riskFactors = riskFactors;
@@ -123,7 +128,8 @@ public class ContractToEventsFunction implements Function<String,Row> {
     return rfCon;
   }
   
-        public Row call(String s) throws Exception {
+        @Override
+		public Row call(String s) throws Exception {
           
           // map input file to contract model 
           // (note, s is a single line of the input file)
@@ -174,47 +180,52 @@ public class ContractToEventsFunction implements Function<String,Row> {
                                          events.getEventValues(),
                                          nv,
                                          na);
-          //Neu: 
-//          int nEvents = events.size();
-//          String[] id = new String[nEvents];
-//          String[] dt = new String[nEvents];
-//          String[] cur = new String[nEvents];
-//          Double[] nv = new Double[nEvents];
-//          Double[] na = new Double[nEvents];
-//          StateSpace states;
-//          for(int i=0;i<nEvents;i++) {
-//            dt[i] = events.get(i).getEventDate().toString();
-//            cur[i] = events.get(i).getEventCurrency().toString();
-//            states = events.get(i).getStates();
-//            nv[i] = states.getNominalValue();
-//            na[i] = states.getNominalAccrued();
-//           
-//          }
-//          Arrays.fill(id,0,nEvents,pamModel.getContractID());
-//          
           
-          //Als Vorschlag hier die Arrays wieder "rückbauen" 
+          //Als Vorschlag hier die Arrays wieder "rückbauen":
           
-//          JavaRDD<Row> resultssflat = results.flatMap(new flatMapFunction<Row, Row>() {
-//              @Override
-//              public Row call(Row row) throws Exception {
-//          
-//          int size =Array.getLength((String[]) results.get(0));
-//          
-//          //Zwischenspeicher erstellen
-//          Object[] fields = new Object[size];
-//          for (int i=0; i < Array.getLength((String[]) row.get(0)); i++){
-//            fields[i] = 	  row.get(0)[i] //"id",
-//            			+";"+ row.get(1)[i] // "date"
-//            			+";"+ row.get(2)[i] // "type"
-//            			+";"+ row.get(3)[i] // "currency"
-//            			+";"+ (String) row.get(4)[i] // "value"
-//            			+";"+ (String) row.get(5)[i] // "nominal"
-//            			+";"+ (String) row.get(6)[i]; // ("accrued"
-//          }
-//              }
-//          }
-
+          //Create Spark Session übernehmen
+          SparkSession sparkSession = SparkSession
+          		.builder()
+          		.appName("sparkjobs.MapContractsToEventsJob")
+          		.getOrCreate();
+          		
+          
+          // DataFrame vorbereiten
+          StructType eventsSchema = DataTypes
+                  .createStructType(new StructField[] {
+                      DataTypes.createStructField("id", DataTypes.createArrayType(DataTypes.StringType), false),
+                      DataTypes.createStructField("date", DataTypes.createArrayType(DataTypes.StringType), false),
+                      DataTypes.createStructField("type", DataTypes.createArrayType(DataTypes.StringType), false),
+                      DataTypes.createStructField("currency", DataTypes.createArrayType(DataTypes.StringType), false),
+                      DataTypes.createStructField("value", DataTypes.createArrayType(DataTypes.DoubleType), false),
+                      DataTypes.createStructField("nominal", DataTypes.createArrayType(DataTypes.DoubleType), false),
+                      DataTypes.createStructField("accrued", DataTypes.createArrayType(DataTypes.DoubleType), false)});
+          
+          
+            //Dynamische Grösse der Arrays pro Zeile:
+            int size =Array.getLength(results.get(0));
+            
+            //Ausgabefile erstellen
+            JavaRDD<Row> Zeilen; 
+            List<Row> lines = new ArrayList<>(7);
+            
+            //eine Ziele pro Ausgabe
+            for (int i=0; i < size ; i++){
+            lines.add(RowFactory.create(  Array.get((results.get(0)), i ) //"id",
+			              			+";"+ Array.get((results.get(1)), i ) // "date"
+			              			+";"+ Array.get((results.get(2)), i ) // "type"
+			              			+";"+ Array.get((results.get(3)), i ) // "currency"
+			              			+";"+ Array.get((results.get(4)), i ) // "value"
+			              			+";"+ Array.get((results.get(5)), i ) // "nominal"
+			              			+";"+ Array.get((results.get(6)), i ) // "accrued"
+			              			));
+            }
+            
+            //Daten schreiben:
+            Dataset<Row> cachedEvents = sparkSession.createDataFrame(lines, eventsSchema).cache();
+         	//cachedEvents.write().parquet(outputPath + "events.parquet");
+         	cachedEvents.write().csv("hdfs://160.85.30.40/user/spark/data/output/ActusPerLine.csv");
+          
           return results;
         }
       } 
