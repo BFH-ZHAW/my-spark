@@ -81,7 +81,7 @@ public class MapContractsToEventsWriteJob {
     
 	// import and map contract data to contract event results
     JavaRDD<String> contractFile = sparkSession.read().textFile(contractsFile).javaRDD(); // contract data
-    JavaRDD<Row> events = contractFile.map(new ContractToEventsWriteFunction(_t0, riskFactorRDD.collectAsMap()));
+    JavaRDD<Row> events = contractFile.map(new ContractToEventsWriteFunction(_t0, riskFactorRDD.collectAsMap(), sparkSession, outputPath));
    // JavaRDD<Row> events = contractFile.map(new ContractToEventsFunction(t0, riskFactors));
     
     

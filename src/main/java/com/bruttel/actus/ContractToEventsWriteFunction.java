@@ -35,13 +35,20 @@ public class ContractToEventsWriteFunction implements Function<String,Row> {
 //  Broadcast<Map<String,String[]>> riskFactors;
 	  ZonedDateTime t0;
 	  Map<String,String[]> riskFactors;
+	  SparkSession sparkSession;
+	  String outputpath;
   
 //  public ContractToEventsFunction(Broadcast<ZonedDateTime> t0,
 //                                  Broadcast<Map<String,String[]>> riskFactors) {
 	  public ContractToEventsWriteFunction(ZonedDateTime t0,
-              Map<String,String[]> riskFactors) {
+              							   Map<String,String[]> riskFactors,
+              							 SparkSession sparkSession,
+              							 String oupbutpath) {
    this.t0 = t0;
     this.riskFactors = riskFactors;
+    this.sparkSession = sparkSession;
+    this.outputpath=outputpath;
+    
  }
   
     private static PrincipalAtMaturityModel mapTerms(String[] terms) {
@@ -183,12 +190,9 @@ public class ContractToEventsWriteFunction implements Function<String,Row> {
           
           //Als Vorschlag hier die Arrays wieder "rückbauen":
           
-          //Create Spark Session übernehmen
-          SparkSession sparkSession = SparkSession
-          		.builder()
-          		.appName("sparkjobs.MapContractsToEventsJob")
-          		.getOrCreate();
-          		
+      	System.out.println("System.out.println(results);");
+          System.out.println(results);
+                		
           
           // DataFrame vorbereiten
           StructType eventsSchema = DataTypes
@@ -208,23 +212,29 @@ public class ContractToEventsWriteFunction implements Function<String,Row> {
             //Ausgabefile erstellen
             JavaRDD<Row> Zeilen; 
             List<Row> lines = new ArrayList<>(7);
+        	System.out.println("System.out.println(lines);");
+            System.out.println(lines);
             
             //eine Ziele pro Ausgabe
             for (int i=0; i < size ; i++){
-            lines.add(RowFactory.create(  Array.get((results.get(0)), i ) //"id",
-			              			+";"+ Array.get((results.get(1)), i ) // "date"
-			              			+";"+ Array.get((results.get(2)), i ) // "type"
-			              			+";"+ Array.get((results.get(3)), i ) // "currency"
-			              			+";"+ Array.get((results.get(4)), i ) // "value"
-			              			+";"+ Array.get((results.get(5)), i ) // "nominal"
-			              			+";"+ Array.get((results.get(6)), i ) // "accrued"
-			              			));
+            	System.out.println("System.out.println(lines); <- Loop");
+            	System.out.println(lines);
+            	System.out.println(Array.get((results.get(0)), i ) );
+//            lines.add(RowFactory.create(  Array.get((results.get(0)), i ) //"id",
+//			              			+";"+ Array.get((results.get(1)), i ) // "date"
+//			              			+";"+ Array.get((results.get(2)), i ) // "type"
+//			              			+";"+ Array.get((results.get(3)), i ) // "currency"
+//			              			+";"+ Array.get((results.get(4)), i ) // "value"
+//			              			+";"+ Array.get((results.get(5)), i ) // "nominal"
+//			              			+";"+ Array.get((results.get(6)), i ) // "accrued"
+//			              			));
             }
             
             //Daten schreiben:
-            Dataset<Row> cachedEvents = sparkSession.createDataFrame(lines, eventsSchema).cache();
+           // Dataset<Row> cachedEvents = sparkSession.createDataFrame(lines, eventsSchema).cache();
+    	    //cachedEvents.show();   
          	//cachedEvents.write().parquet(outputPath + "events.parquet");
-         	cachedEvents.write().csv("hdfs://160.85.30.40/user/spark/data/output/ActusPerLine.csv");
+//        	cachedEvents.write().csv("hdfs://160.85.30.40/user/spark/data/output/ActusPerLine.csv");
           
           return results;
         }
