@@ -4,6 +4,8 @@ import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoder;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
@@ -81,7 +83,7 @@ public class MapContractsToEventsWriteJob {
     
 	// import and map contract data to contract event results
     JavaRDD<String> contractFile = sparkSession.read().textFile(contractsFile).javaRDD(); // contract data
-    JavaRDD<Row> events = contractFile.map(new ContractToEventsWriteFunction(_t0, riskFactorRDD.collectAsMap(), sparkSession, outputPath));
+//    JavaRDD<Row> events = contractFile.map(new ContractToEventsWriteFunction(_t0, riskFactorRDD.collectAsMap(), sparkSession, outputPath));
    // JavaRDD<Row> events = contractFile.map(new ContractToEventsFunction(t0, riskFactors));
     
     
@@ -134,24 +136,52 @@ public class MapContractsToEventsWriteJob {
                 DataTypes.createStructField("value", DataTypes.createArrayType(DataTypes.DoubleType), false),
                 DataTypes.createStructField("nominal", DataTypes.createArrayType(DataTypes.DoubleType), false),
                 DataTypes.createStructField("accrued", DataTypes.createArrayType(DataTypes.DoubleType), false)});
-    //Dataset<Row> cachedEvents = sparkSession.emptyDataFrame();
+    Dataset<Row> cachedEventsLeer1 = sparkSession.emptyDataFrame();
+    //sparkSession.emptyDataset();
+//    Encoder<Row> rowEncoder = Encoders.tuple(STRING(), STRING() ,STRING() , STRING() , DOUBLE(), DOUBLE(), DOUBLE());
+    Dataset<Row> cachedEventsLeer2 = null;
+    try {
+    	//Mit Lerem Rwo element
+//    JavaRDD<Row> row = null ;
+//    Dataset<Row> cachedEventsLeer = sparkSession.createDataFrame( row, eventsSchema);
+    	//Direkt Leeres DataFrame
+    cachedEventsLeer2 = sparkSession.emptyDataFrame();
+    cachedEventsLeer2.schema().add("id", DataTypes.StringType)
+    						  .add("date", DataTypes.StringType)
+    						  .add("type", DataTypes.StringType)
+    						  .add("currency", DataTypes.StringType)
+    						  .add("value", DataTypes.DoubleType)
+    						  .add("nominal", DataTypes.DoubleType)
+    						  .add("accured", DataTypes.DoubleType);
     
-    
+    	//TempView erstellen
+    cachedEventsLeer2.createOrReplaceTempView("eventsSeq");
+    }
+    catch(Exception e) {
+        System.out.println(e.getClass().getName() + " when creating a new empty Dataset eventsSeq");
+      }
+//    Dataset<Row> cachedEventsLeer = sparkSession.createDataFrame( sparkSession.emptyDataset(row),eventsSchema);
+//     Dataset<Row> cachedEventsLeer = sparkSession.emptyDataFrame();
+//     Dataset<Row> cachedEventsLeer2 = applySchema(cachedEventsLeer, eventsSchema);
    // Dataset<Row> test =  createDataFrame(new java.util.List<Row>()  rows,eventsSchema);
   //  JavaRDD<Row> empty1 = [id: int, name: string];
 //    JavaRDD<Row> empty = sparkSession.createDataFrame(empty1,eventsSchema);
 //    Dataset<Row> cachedEvents = sparkSession.createDataFrame(emptyRDD(), eventsSchema).cache();
-       Dataset<Row> cachedEvents = sparkSession.createDataFrame(events, eventsSchema).cache();
- 	
-    
+//       Dataset<Row> cachedEvents = sparkSession.createDataFrame(events, eventsSchema).cache();
+   JavaRDD<Row> events = contractFile.map(new ContractToEventsWriteFunction(_t0, riskFactorRDD.collectAsMap(), sparkSession, outputPath));
+   Dataset<Row> cachedEvents = sparkSession.createDataFrame(events, eventsSchema).cache();
     //For SQL Querying:
  	//cachedEvents.registerTempTable("events");
     cachedEvents.createOrReplaceTempView("events");
 
     //Debug Info
     if(debug.equals("debug")){
+    	System.out.println("cachedEventsOriginal");
 	    cachedEvents.printSchema();
 	    cachedEvents.show();   
+	    System.out.println("cachedEventsSqeuentiell");
+	    cachedEventsLeer2.printSchema();
+	    cachedEventsLeer2.show();   
     }
     
  // DataFrames can be saved as Parquet files, maintaining the schema information.

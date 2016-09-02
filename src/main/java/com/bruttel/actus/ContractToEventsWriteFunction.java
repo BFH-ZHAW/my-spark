@@ -1,20 +1,24 @@
 package com.bruttel.actus;
 
-import org.apache.spark.api.java.function.Function;
+
 import org.apache.spark.api.java.JavaRDD;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.RowFactory;
+import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoder;
+import org.apache.spark.sql.Encoders;
+import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.DataTypes;
-import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.StructField;
+import org.actus.conversion.DateConverter;
+import org.apache.spark.api.java.function.Function;
+import org.apache.spark.sql.RowFactory;
 import org.actus.contracttypes.PrincipalAtMaturity;
 import org.actus.models.PrincipalAtMaturityModel;
 import org.actus.util.time.EventSeries;
 import org.actus.conversion.PeriodConverter;
 import org.actus.conversion.DoubleConverter;
-import org.actus.conversion.DateConverter;
 import org.actus.contractstates.StateSpace;
 import org.actus.riskfactors.RiskFactorConnector;
 import org.actus.misc.riskfactormodels.SpotRateCurve;
@@ -47,7 +51,7 @@ public class ContractToEventsWriteFunction implements Function<String,Row> {
    this.t0 = t0;
     this.riskFactors = riskFactors;
     this.sparkSession = sparkSession;
-    this.outputpath=outputpath;
+    this.outputpath = outputpath;
     
  }
   
@@ -215,6 +219,8 @@ public class ContractToEventsWriteFunction implements Function<String,Row> {
         	System.out.println("System.out.println(lines);");
             System.out.println(lines);
             
+            
+            
             //eine Ziele pro Ausgabe
             for (int i=0; i < size ; i++){
             	System.out.println("System.out.println(lines); <- Loop");
@@ -235,6 +241,24 @@ public class ContractToEventsWriteFunction implements Function<String,Row> {
     	    //cachedEvents.show();   
          	//cachedEvents.write().parquet(outputPath + "events.parquet");
 //        	cachedEvents.write().csv("hdfs://160.85.30.40/user/spark/data/output/ActusPerLine.csv");
+            
+        //Versuch mit SQL:
+            //DataFrame erstellen 
+            JavaRDD<Row> rows = sparkSession.emptyDataFrame(). results; 
+            results.jav
+            //rows.m
+            Dataset<Row> cachedTemp = sparkSession.createDataFrame( rows, eventsSchema).cache();
+            cachedTemp.createOrReplaceTempView("temp");
+            
+           // Data Frame durchgehen:
+            
+            	int sizeSQL =  sparkSession.sql("select size(id) as Size from temp").collectAsList().get(0).getInt(0);
+            
+            for (int i=0; i < sizeSQL ; i++){
+         			sparkSession.sql("insert into eventsSeq select * from temp");
+            }
+            
+            
           
           return results;
         }
