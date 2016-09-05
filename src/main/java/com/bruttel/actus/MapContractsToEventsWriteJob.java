@@ -136,7 +136,9 @@ public class MapContractsToEventsWriteJob {
                 DataTypes.createStructField("value", DataTypes.createArrayType(DataTypes.DoubleType), false),
                 DataTypes.createStructField("nominal", DataTypes.createArrayType(DataTypes.DoubleType), false),
                 DataTypes.createStructField("accrued", DataTypes.createArrayType(DataTypes.DoubleType), false)});
-    Dataset<Row> cachedEventsLeer1 = sparkSession.emptyDataFrame();
+   
+    
+//    Dataset<Row> cachedEventsLeer1 = sparkSession.emptyDataFrame();
     //sparkSession.emptyDataset();
 //    Encoder<Row> rowEncoder = Encoders.tuple(STRING(), STRING() ,STRING() , STRING() , DOUBLE(), DOUBLE(), DOUBLE());
     Dataset<Row> cachedEventsLeer2 = null;
@@ -153,9 +155,12 @@ public class MapContractsToEventsWriteJob {
     						  .add("value", DataTypes.DoubleType)
     						  .add("nominal", DataTypes.DoubleType)
     						  .add("accured", DataTypes.DoubleType);
-    
+    System.out.println("cachedEventsSqeuentiellSchema:");
+    cachedEventsLeer2.printSchema();
     	//TempView erstellen
     cachedEventsLeer2.createOrReplaceTempView("eventsSeq");
+
+    
     }
     catch(Exception e) {
         System.out.println(e.getClass().getName() + " when creating a new empty Dataset eventsSeq");
@@ -182,6 +187,12 @@ public class MapContractsToEventsWriteJob {
 	    System.out.println("cachedEventsSqeuentiell");
 	    cachedEventsLeer2.printSchema();
 	    cachedEventsLeer2.show();   
+	    System.out.println("Tabelle per SQL erstellen:");
+	    sparkSession.sql("CREATE TABLE IF NOT EXISTS eventsSQL (id STRING, date STRING)");
+	    sparkSession.sql("INSERT INTO TABLE eventsSQL VALUES (1, '09.09.2016'");
+	    Dataset<Row> cachedEventsLeer3 = sparkSession.sql("SELECT * FROM eventsSQL");
+	    cachedEventsLeer3.printSchema();
+	    cachedEventsLeer3.show();  
     }
     
  // DataFrames can be saved as Parquet files, maintaining the schema information.

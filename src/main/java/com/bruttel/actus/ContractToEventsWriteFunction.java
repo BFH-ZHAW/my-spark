@@ -10,6 +10,9 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
+
+import scala.Tuple2;
+
 import org.apache.spark.sql.types.StructField;
 import org.actus.conversion.DateConverter;
 import org.apache.spark.api.java.function.Function;
@@ -191,6 +194,7 @@ public class ContractToEventsWriteFunction implements Function<String,Row> {
                                          events.getEventValues(),
                                          nv,
                                          na);
+
           
           //Als Vorschlag hier die Arrays wieder "rückbauen":
           
@@ -199,20 +203,24 @@ public class ContractToEventsWriteFunction implements Function<String,Row> {
                 		
           
           // DataFrame vorbereiten
+         
           StructType eventsSchema = DataTypes
                   .createStructType(new StructField[] {
-                      DataTypes.createStructField("id", DataTypes.createArrayType(DataTypes.StringType), false),
-                      DataTypes.createStructField("date", DataTypes.createArrayType(DataTypes.StringType), false),
-                      DataTypes.createStructField("type", DataTypes.createArrayType(DataTypes.StringType), false),
-                      DataTypes.createStructField("currency", DataTypes.createArrayType(DataTypes.StringType), false),
-                      DataTypes.createStructField("value", DataTypes.createArrayType(DataTypes.DoubleType), false),
-                      DataTypes.createStructField("nominal", DataTypes.createArrayType(DataTypes.DoubleType), false),
-                      DataTypes.createStructField("accrued", DataTypes.createArrayType(DataTypes.DoubleType), false)});
-          
+                      DataTypes.createStructField("id", DataTypes.StringType, false),
+                      DataTypes.createStructField("date", DataTypes.StringType, false),
+                      DataTypes.createStructField("type", DataTypes.StringType, false),
+                      DataTypes.createStructField("currency", DataTypes.StringType, false),
+                      DataTypes.createStructField("value", DataTypes.DoubleType, false),
+                      DataTypes.createStructField("nominal", DataTypes.DoubleType, false),
+                      DataTypes.createStructField("accrued", DataTypes.DoubleType, false)});
           
             //Dynamische Grösse der Arrays pro Zeile:
-            int size =Array.getLength(results.get(0));
-            
+          int size = 0;
+          try{
+            size =Array.getLength(results.get(0));
+          } catch(Exception e) {
+              System.out.println(e.getClass().getName() + " int size =Array.getLength(results.get(0)");
+            }  
             //Ausgabefile erstellen
             JavaRDD<Row> Zeilen; 
             List<Row> lines = new ArrayList<>(7);
@@ -221,11 +229,11 @@ public class ContractToEventsWriteFunction implements Function<String,Row> {
             
             
             
-            //eine Ziele pro Ausgabe
-            for (int i=0; i < size ; i++){
-            	System.out.println("System.out.println(lines); <- Loop");
-            	System.out.println(lines);
-            	System.out.println(Array.get((results.get(0)), i ) );
+//      //eine Ziele pro Ausgabe
+//            for (int i=0; i < size ; i++){
+//            	System.out.println("System.out.println(lines); <- Loop");
+//            	System.out.println(lines);
+//            	System.out.println(Array.get((results.get(0)), i ) );
 //            lines.add(RowFactory.create(  Array.get((results.get(0)), i ) //"id",
 //			              			+";"+ Array.get((results.get(1)), i ) // "date"
 //			              			+";"+ Array.get((results.get(2)), i ) // "type"
@@ -234,7 +242,7 @@ public class ContractToEventsWriteFunction implements Function<String,Row> {
 //			              			+";"+ Array.get((results.get(5)), i ) // "nominal"
 //			              			+";"+ Array.get((results.get(6)), i ) // "accrued"
 //			              			));
-            }
+//            }
             
             //Daten schreiben:
            // Dataset<Row> cachedEvents = sparkSession.createDataFrame(lines, eventsSchema).cache();
@@ -242,22 +250,34 @@ public class ContractToEventsWriteFunction implements Function<String,Row> {
          	//cachedEvents.write().parquet(outputPath + "events.parquet");
 //        	cachedEvents.write().csv("hdfs://160.85.30.40/user/spark/data/output/ActusPerLine.csv");
             
-        //Versuch mit SQL:
-            //DataFrame erstellen 
-            JavaRDD<Row> rows = sparkSession.emptyDataFrame(). results; 
-            results.jav
-            //rows.m
-            Dataset<Row> cachedTemp = sparkSession.createDataFrame( rows, eventsSchema).cache();
-            cachedTemp.createOrReplaceTempView("temp");
+//  //Versuch mit SQL:
+//            //DataFrame erstellen 
+//            //JavaPairRDD<String, String[]> riskFactorRDD = riskFactor.mapToPair(temp -> new Tuple2<String, String[]>(temp.split(";")[0], temp.split(";")));
+//            
+//            List<Row> rows = Arrays.asList(results);
+//          //  JavaRDD<Row> rows = sparkSession.;
+//
+//            Dataset<Row> cachedTemp = sparkSession.createDataFrame( rows, eventsSchema).cache();
+//            cachedTemp.createOrReplaceTempView("temp");
+//            
+//  // Data Frame durchgehen:
+//            
+//            int sizeSQL =  sparkSession.sql("select size(id) as Size from temp").collectAsList().get(0).getInt(0);
+//            
+//            
+//            for (int i=0; i < sizeSQL ; i++){
+//         			sparkSession.sql("insert into eventsSeq select * from temp");
+//            }
+    //Versuch direkt ab der Row
             
-           // Data Frame durchgehen:
-            
-            	int sizeSQL =  sparkSession.sql("select size(id) as Size from temp").collectAsList().get(0).getInt(0);
-            
+            try{
+            int sizeSQL = Array.getLength(results.get(1));
             for (int i=0; i < sizeSQL ; i++){
-         			sparkSession.sql("insert into eventsSeq select * from temp");
-            }
-            
+     			sparkSession.sql(" INSERT INTO TABLE eventsSeq VALUES ("+ Array.get((results.get(1)), i )+")");
+        }
+            } catch(Exception e) {
+                System.out.println(e.getClass().getName() + "INSERT INTO TABLE eventsSeq VALUES ");
+              }
             
           
           return results;
