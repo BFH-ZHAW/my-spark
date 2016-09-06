@@ -41,6 +41,7 @@ public class MapContractsToEventsWriteJob {
     SparkSession sparkSession = SparkSession
     		.builder()
     		.appName("sparkjobs.MapContractsToEventsJob")
+    		.enableHiveSupport()
     		.getOrCreate();
     //Create SQL Context -> obsolet?
     //SQLContext sqlContext = new org.apache.spark.sql.SQLContext(sparkSession);
@@ -189,7 +190,7 @@ public class MapContractsToEventsWriteJob {
 	    cachedEventsLeer2.show();   
 	    System.out.println("Tabelle per SQL erstellen:");
 	    sparkSession.sql("CREATE TABLE IF NOT EXISTS eventsSQL (id STRING, date STRING)");
-	    sparkSession.sql("INSERT INTO TABLE eventsSQL VALUES (1, '09.09.2016'");
+	    sparkSession.sql("INSERT INTO TABLE eventsSQL VALUES (1, '09.09.2016')");
 	    Dataset<Row> cachedEventsLeer3 = sparkSession.sql("SELECT * FROM eventsSQL");
 	    cachedEventsLeer3.printSchema();
 	    cachedEventsLeer3.show();  
