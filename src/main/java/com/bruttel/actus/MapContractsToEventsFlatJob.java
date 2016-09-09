@@ -16,7 +16,7 @@ import javax.time.calendar.ZonedDateTime;
 import scala.Tuple2;
 import java.util.Arrays;
 
-public class MapContractsToEventsWriteJob {
+public class MapContractsToEventsFlatJob {
 
   public static void main(String[] args) {
     if (args.length < 1) {
@@ -182,7 +182,7 @@ public class MapContractsToEventsWriteJob {
 //    cachedEventsLeer2.write().mode("overwrite").saveAsTable("evetnsSeqTable");
     
 //Nun wieder den bisherigen Code ausführen
-   JavaRDD<Row> events = contractFile.map(new ContractToEventsWriteFunction(_t0, riskFactorRDD.collectAsMap(), sparkSession, outputPath));
+   JavaRDD<Row> events = contractFile.map(new ContractToEventsFlatFunction(_t0, riskFactorRDD.collectAsMap(), sparkSession, outputPath));
    Dataset<Row> cachedEvents = sparkSession.createDataFrame(events, eventsSchema).cache();
     //For SQL Querying:
  	//cachedEvents.registerTempTable("events");

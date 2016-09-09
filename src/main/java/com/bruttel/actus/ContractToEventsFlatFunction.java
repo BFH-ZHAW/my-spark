@@ -37,7 +37,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public class ContractToEventsWriteFunction implements Function<String,Row> {
+public class ContractToEventsFlatFunction implements Function<String,Row> {
 //  Broadcast<ZonedDateTime> t0;
 //  Broadcast<Map<String,String[]>> riskFactors;
 	  ZonedDateTime t0;
@@ -47,7 +47,7 @@ public class ContractToEventsWriteFunction implements Function<String,Row> {
   
 //  public ContractToEventsFunction(Broadcast<ZonedDateTime> t0,
 //                                  Broadcast<Map<String,String[]>> riskFactors) {
-	  public ContractToEventsWriteFunction(ZonedDateTime t0,
+	  public ContractToEventsFlatFunction(ZonedDateTime t0,
               							   Map<String,String[]> riskFactors,
               							 SparkSession sparkSession,
               							 String oupbutpath) {
