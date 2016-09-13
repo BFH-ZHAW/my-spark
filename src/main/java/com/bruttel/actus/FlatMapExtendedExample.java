@@ -35,17 +35,30 @@ public class FlatMapExtendedExample {
 	 List<String> contractsList = Arrays.asList("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10");
      Dataset<String> contractsDataset = sparkSession.createDataset(contractsList, Encoders.STRING());  
      JavaRDD<String> contractsJavaRDDString = contractsDataset.toJavaRDD();
-
+     
+//     //TEST
+//     List<Row> rowList = new ArrayList<>();
+//     contractsJavaRDDString.foreach(contract -> rowList.add(RowFactory.create(contract))); 
+//     System.out.println("rowList.size(): "+rowList.size());
+//    // System.out.println("rowList.get(1): "+rowList.get(1));
+//     riskList.
+//     rowList.forEach(e -> System.out.println("im FooreachLoop"+e));
+//     for (int i=0; i < contractsJavaRDDString.count() ; i++){
+//    	 System.out.println("riskDataset.take(i)"+contractsJavaRDDString.take(i));
+//    	 rowList.add(RowFactory.create(contractsJavaRDDString.take(i)));
+//     }
+//     System.out.println("rowList.size(): "+rowList.size());
+     
      //Struct erstellen:
      StructType contractsSchema = DataTypes.createStructType(new StructField[]{
 								    		 DataTypes.createStructField("id", DataTypes.StringType, false),
-								             DataTypes.createStructField("date", DataTypes.StringType, false)});
-    
-//     JavaRDD<Row> contracts = datasetContracts.flatMap(new mapContractsFunction(datasetRisk));
-     JavaRDD<Row> contractsJavaRDDRow = contractsJavaRDDString.flatMap(new mapContractsFunction(riskDataset));
+								             DataTypes.createStructField("date", DataTypes.StringType, false)});   
+     
+     //Data Frame erstellen, in dem die Custom Function aufgerufen wird. 
+     JavaRDD<Row> contractsJavaRDDRow = contractsJavaRDDString.flatMap(new mapContractsFunction(riskList));
      Dataset<Row> contractDatasetRow = sparkSession.createDataFrame(contractsJavaRDDRow, contractsSchema).cache();
      
-//	Ausgabe:
+     //Ausgabe:
      contractDatasetRow.schema();
      contractDatasetRow.show();     
      
@@ -57,19 +70,26 @@ public class FlatMapExtendedExample {
 class mapContractsFunction implements FlatMapFunction<String,Row> {
 	
 	//Wird für das XxY Mapping verwendet
-	Dataset<String> datasetRisk;
+	List<String> riskList;
 	
 	//Aufruf der Funktion (DatasetRisk wird als Konstruktor mitgegeben) 
-	public mapContractsFunction(Dataset<String> datasetRisk){
-		this.datasetRisk = datasetRisk;
+	public mapContractsFunction(List<String> riskList){
+		this.riskList = riskList;
 	}
 	
 	//Dieser Aufruf (call String) wird von der FlatMapFunction gebraucht, hier wird festgelegt, wie der Input verarbeitet wird.
 	@Override
-	public Iterator<Row> call(String contractsList) throws Exception {
+	public Iterator<Row> call(String contract) throws Exception {
+
 		  //Ausgangsliste erstellen (Ausgabe ist Row, aber RowList ist mehrfaches von Row und somit bei Flatmap erlaubt)
 		  List<Row> rowList = new ArrayList<>();
-		  datasetRisk.foreach(risiko -> rowList.add(RowFactory.create(contractsList, risiko)));	  
+		  
+		  //Hier wird das zweite Array jeweils zugeteilt. 
+		  for (int i=0; i < riskList.size(); i++){
+		  		rowList.add(RowFactory.create(contract, riskList.get(i)));
+		  }
+		  //Das wäre viel eleganter, funktioniert aber nicht weil?!?!?		
+		  // datasetRisk.foreach(risiko -> rowList.add(RowFactory.create(contract, risiko)));	  
 		  return rowList.iterator();
 
 	}
