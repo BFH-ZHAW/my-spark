@@ -1,22 +1,11 @@
 package com.bruttel.actus;
 
 
-import org.apache.spark.api.java.JavaRDD;
-import org.apache.spark.api.java.JavaPairRDD;
-import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Encoder;
-import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.types.DataTypes;
-import org.apache.spark.sql.types.StructType;
-
-import scala.Tuple2;
-
-import org.apache.spark.sql.types.StructField;
-import org.actus.conversion.DateConverter;
-import org.apache.spark.api.java.function.Function;
+import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.sql.RowFactory;
+
+import org.actus.conversion.DateConverter;
 import org.actus.contracttypes.PrincipalAtMaturity;
 import org.actus.models.PrincipalAtMaturityModel;
 import org.actus.util.time.EventSeries;
@@ -34,37 +23,21 @@ import javax.time.calendar.ZonedDateTime;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-public class ContractToEventsFlatFunction implements Function<String,Row> {
-//  Broadcast<ZonedDateTime> t0;
-//  Broadcast<Map<String,String[]>> riskFactors;
+@SuppressWarnings("serial")
+public class ContractToEventsFlatFunction implements FlatMapFunction<String,Row> {
 	  ZonedDateTime t0;
 	  Map<String,String[]> riskFactors;
-	  SparkSession sparkSession2;
-	  String outputpath;
   
-//  public ContractToEventsFunction(Broadcast<ZonedDateTime> t0,
-//                                  Broadcast<Map<String,String[]>> riskFactors) {
-	  public ContractToEventsFlatFunction(ZonedDateTime t0,
-              							   Map<String,String[]> riskFactors,
-              							 SparkSession sparkSession,
-              							 String oupbutpath) {
-   this.t0 = t0;
-    this.riskFactors = riskFactors;
-    this.sparkSession = sparkSession;
-    this.outputpath = outputpath;
-    
- }
-	    SparkSession sparkSession = SparkSession
-	    		.builder()
-	    		.appName("sparkjobs.MapContractsToEventsJob")
-	 //Funktioniert leider nicht, weil die Hive Klassen nicht gefunden wurden.  
-	 //  		.enableHiveSupport()
-	    		.getOrCreate(); 
-	  
-	  
+	  public ContractToEventsFlatFunction(ZonedDateTime t0, Map<String,String[]> riskFactors) {
+		  this.t0 = t0;
+		  this.riskFactors = riskFactors;
+	  }
+	   	  
+	//Methode um das Maturity Modell zu berechnen  
     private static PrincipalAtMaturityModel mapTerms(String[] terms) {
     		PrincipalAtMaturityModel model = new PrincipalAtMaturityModel();
     try{
@@ -112,8 +85,9 @@ public class ContractToEventsFlatFunction implements Function<String,Row> {
     }
     return model;
   }
-  
-  private static RiskFactorConnector mapRF(Map<String,String[]> rfData, 
+    
+    //Methode um den RisikoFacktor zu berechnen
+    private static RiskFactorConnector mapRF(Map<String,String[]> rfData, 
                                            String marketObjectCodeRateReset,
                                            String marketObjectCodeScaling,
                                            ZonedDateTime t0) {
@@ -149,18 +123,15 @@ public class ContractToEventsFlatFunction implements Function<String,Row> {
     return rfCon;
   }
   
-        @Override
-		public Row call(String s) throws Exception {
+	//Dieser Aufruf (call String) wird von der FlatMapFunction gebraucht, hier wird festgelegt, wie der Input verarbeitet wird.
+    	@Override
+		public Iterator<Row> call(String s) throws Exception {
           
           // map input file to contract model 
           // (note, s is a single line of the input file)
           PrincipalAtMaturityModel pamModel = mapTerms(s.split(";"));
           
           // map risk factor data to actus connector
-//          RiskFactorConnector rfCon = mapRF(riskFactors.value(), 
-//                                            pamModel.getMarketObjectCodeRateReset(),
-//                                            pamModel.getMarketObjectCodeOfScalingIndex(),
-//                                            t0.value());
           RiskFactorConnector rfCon = mapRF(riskFactors, 
                   pamModel.getMarketObjectCodeRateReset(),
                   pamModel.getMarketObjectCodeOfScalingIndex(),
@@ -174,8 +145,7 @@ public class ContractToEventsFlatFunction implements Function<String,Row> {
           pamCT.processEvents(t0);
           EventSeries events = pamCT.getProcessedEventSeries();
 
-          //Original:          
-//           stucture results als array of Rows
+          //stucture results als array of Rows
           int nEvents = events.size();
           String[] id = new String[nEvents];
           String[] dt = new String[nEvents];
@@ -192,8 +162,8 @@ public class ContractToEventsFlatFunction implements Function<String,Row> {
            
           }
           Arrays.fill(id,0,nEvents,pamModel.getContractID());
-          
-//          Original:
+        
+          //Row with Arrays
           Row results = RowFactory.create(id,
                                          dt,
                                          events.getEventTypes(),
@@ -201,102 +171,25 @@ public class ContractToEventsFlatFunction implements Function<String,Row> {
                                          events.getEventValues(),
                                          nv,
                                          na);
-
-          
-          //Als Vorschlag hier die Arrays wieder "rückbauen":
-          
-      	System.out.println("System.out.println(results);");
-          System.out.println(results);
-                		
-          
-          // DataFrame vorbereiten
          
-          StructType eventsSchema = DataTypes
-                  .createStructType(new StructField[] {
-                      DataTypes.createStructField("id", DataTypes.StringType, false),
-                      DataTypes.createStructField("date", DataTypes.StringType, false),
-                      DataTypes.createStructField("type", DataTypes.StringType, false),
-                      DataTypes.createStructField("currency", DataTypes.StringType, false),
-                      DataTypes.createStructField("value", DataTypes.DoubleType, false),
-                      DataTypes.createStructField("nominal", DataTypes.DoubleType, false),
-                      DataTypes.createStructField("accrued", DataTypes.DoubleType, false)});
-          
-            //Dynamische Grösse der Arrays pro Zeile:
-          int size = 0;
-          try{
-            size =Array.getLength(results.get(0));
-          } catch(Exception e) {
-              System.out.println(e.getClass().getName() + " int size =Array.getLength(results.get(0)");
-            }  
-            //Ausgabefile erstellen
-            JavaRDD<Row> Zeilen; 
-            List<Row> lines = new ArrayList<>(7);
-        	System.out.println("System.out.println(lines);");
-            System.out.println(lines);
+          //Dynamische Grösse der Arrays pro Zeile:
+          int size =Array.getLength(results.get(0));
             
-            
-            
-//      //eine Ziele pro Ausgabe
-//            for (int i=0; i < size ; i++){
-//            	System.out.println("System.out.println(lines); <- Loop");
-//            	System.out.println(lines);
-//            	System.out.println(Array.get((results.get(0)), i ) );
-//            lines.add(RowFactory.create(  Array.get((results.get(0)), i ) //"id",
-//			              			+";"+ Array.get((results.get(1)), i ) // "date"
-//			              			+";"+ Array.get((results.get(2)), i ) // "type"
-//			              			+";"+ Array.get((results.get(3)), i ) // "currency"
-//			              			+";"+ Array.get((results.get(4)), i ) // "value"
-//			              			+";"+ Array.get((results.get(5)), i ) // "nominal"
-//			              			+";"+ Array.get((results.get(6)), i ) // "accrued"
-//			              			));
-//            }
-            
-            //Daten schreiben:
-           // Dataset<Row> cachedEvents = sparkSession.createDataFrame(lines, eventsSchema).cache();
-    	    //cachedEvents.show();   
-         	//cachedEvents.write().parquet(outputPath + "events.parquet");
-//        	cachedEvents.write().csv("hdfs://160.85.30.40/user/spark/data/output/ActusPerLine.csv");
-            
-//  //Versuch mit SQL:
-//            //DataFrame erstellen 
-//            //JavaPairRDD<String, String[]> riskFactorRDD = riskFactor.mapToPair(temp -> new Tuple2<String, String[]>(temp.split(";")[0], temp.split(";")));
-//            
-//            List<Row> rows = Arrays.asList(results);
-//          //  JavaRDD<Row> rows = sparkSession.;
-//
-//            Dataset<Row> cachedTemp = sparkSession.createDataFrame( rows, eventsSchema).cache();
-//            cachedTemp.createOrReplaceTempView("temp");
-//            
-//  // Data Frame durchgehen:
-//            
-//            int sizeSQL =  sparkSession.sql("select size(id) as Size from temp").collectAsList().get(0).getInt(0);
-//            
-//            
-//            for (int i=0; i < sizeSQL ; i++){
-//         			sparkSession.sql("insert into eventsSeq select * from temp");
-//            }
-    //Versuch direkt ab der Row
-            
-//            Dataset<Row> cachedTemp = sparkSession.table("eventsSeqTable");
-//            cachedTemp.createOrReplaceTempView("temp");
-            //Dataset<Row> cachedTemp = sparkSession.emptyDataFrame();
+          //Ausgabefile erstellen (Ausgabe ist Row, aber RowList ist mehrfaches von Row und somit bei Flatmap erlaubt)
+		  List<Row> rowList = new ArrayList<>();
+                    
+		  //eine Ziele pro Ausgabe
+            for (int i=0; i < size ; i++){       	
+      		rowList.add(RowFactory.create(  Array.get((results.get(0)), i ), //"id",
+			              					Array.get((results.get(1)), i ), // "date"
+			              					Array.get((results.get(2)), i ), // "type"
+			              					Array.get((results.get(3)), i ), // "currency"
+			              					Array.get((results.get(4)), i ), // "value"
+			              					Array.get((results.get(5)), i ), // "nominal"
+			              					Array.get((results.get(6)), i ) // "accrued"
+			              				));
+            }
 
-            try{
-            int sizeSQL = Array.getLength(results.get(1));
-            for (int i=0; i < sizeSQL ; i++){
-            	
-     			//sparkSession.sql(" INSERT INTO TABLE eventsSeq VALUES ("+ Array.get((results.get(1)), i )+")");
-            	Dataset<Row> cachedTemp = sparkSession.sql(" SELECT "+ Array.get((results.get(1)), i )+" FROM eventsSeq");
-     			
-     			cachedTemp.write().mode("append").csv("hdfs://160.85.30.40/user/spark2/data/daten.csv");
-        }
-            } catch(Exception e) {
-                System.out.println(e.getClass().getName() + "INSERT INTO TABLE eventsSeq VALUES ");
-              }
-//            cachedTemp.write().mode("append").saveAsTable("evetnsSeqTable");
-//            sparkSession.sql(" INSERT INTO TABLE eventsSeq VALUES('CT1','2016-01-01T00:00','ADO','EUR',0.0,48000.0,0.0)");
-         // cachedTemp.schema();
-         // cachedTemp.show();
-          return results;
+  		  return rowList.iterator();
         }
       } 

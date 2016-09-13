@@ -29,7 +29,9 @@ public class FlatMapExtendedExample {
      
 	 //Liste Risiko erstellen
 	 List<String> riskList = Arrays.asList("crash", "death", "strocke", "explosion", "war");
-     Dataset<String> riskDataset = sparkSession.createDataset(riskList, Encoders.STRING());
+    //Braucht es nicht: 
+	 //Dataset<String> riskDataset = sparkSession.createDataset(riskList, Encoders.STRING());
+	 
      
      //Liste Contracts erstellen
 	 List<String> contractsList = Arrays.asList("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10");
