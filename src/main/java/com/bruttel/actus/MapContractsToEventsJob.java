@@ -12,36 +12,40 @@ import org.actus.conversion.DateConverter;
 
 import javax.time.calendar.ZonedDateTime;
 import scala.Tuple2;
+
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.List;
 
 public class MapContractsToEventsJob {
 
   public static void main(String[] args) {
-    if (args.length < 1) {
-      System.err.println("Please provide the input file full path as argument");
-      System.exit(0);
-    }
-    //Input Parameter:
-    String contractsFile = args[0]; //hdfs://160.85.30.40/user/spark/data/contracts_10000000.csv 
-    String riskfactorsFile = args[1]; //hdfs://160.85.30.40/user/spark/data/riskfactors_input.csv 
-    String timespecsFile = args[2]; //hdfs://160.85.30.40/user/spark/data/timespecs_input.csv 
-    String outputPath = args[3]; //hdfs://160.85.30.40/user/spark/data/output/; 
-    //String way = args[3];  //count or Group by
-    String debug = args[4];
-
-//    // Create Spark Context (Old Version)
-//    SparkConf conf = new SparkConf().setAppName("sparkjobs.MapContractsToEventsJob");//.setMaster("local");
-//    JavaSparkContext sparkSession = new JavaSparkContext(conf);
-//    // Create SQL Context 
-//    SQLContext sqlContext = new SQLContext(sparkSession);
-   
+	    if (args.length != 10) {
+	        System.err.println("Usage: contractFile riskfactorsFile timespecsFile outputPath debug logPath ram size run knoten");
+	        System.exit(0);
+	      }
+	      //Input Parameter:
+	      String contractsFile = args[0]; //hdfs://160.85.30.40/user/spark/data/contracts_10000000.csv 
+	      String riskfactorsFile = args[1]; //hdfs://160.85.30.40/user/spark/data/riskfactors_input.csv 
+	      String timespecsFile = args[2]; //hdfs://160.85.30.40/user/spark/data/timespecs_input.csv 
+	      String outputPath = args[3]; //hdfs://160.85.30.40/user/spark/data/output/; 
+	      String debug = args[4];  //write debug to debug or anything else to not debug
+	      String logPath =args[5]; //hdfs://160.85.30.40/user/spark/data/ Hier wird das Logfile geschrieben
+	      String ram =args[6]; //12GB wird fürs Log Gebraucht
+	      String size =args[7]; //3GB wird fürs Log gebraucht
+	      String run =args[8]; //1-10 wird fürs Log gebraucht
+	      String knoten =args[9]; //1-8 wird fürs Log gebraucht
+	    
+	    //Klassenname wird wieder verwendet:    
+	    String className = "com.bruttel.actus.MapContractsToEventsJob"; 
+	    
     //Create Spark Session
     SparkSession sparkSession = SparkSession
     		.builder()
-    		.appName("sparkjobs.MapContractsToEventsJob")
+    		.appName(className)
     		.getOrCreate();
-    //Create SQL Context -> obsolet?
-    //SQLContext sqlContext = new org.apache.spark.sql.SQLContext(sparkSession);
     
     // for time stopping
     long start = System.currentTimeMillis();
@@ -49,7 +53,6 @@ public class MapContractsToEventsJob {
     // import and broadcast analysis date
     JavaRDD<String> timeSpecs = sparkSession.read().textFile(timespecsFile).javaRDD(); // analysis time specification
     JavaRDD<String> timeVector = timeSpecs.flatMap(line -> Arrays.asList(line.split(";")).iterator());
-//    String[] timeVector = timeSpecsLine.first();
     ZonedDateTime _t0 = null;
     try{
     	_t0 = DateConverter.of(timeVector.first());  	
@@ -61,69 +64,20 @@ public class MapContractsToEventsJob {
     if(debug.equals("debug")){
     	System.out.println(_t0);
     }
-    //Broadcast<ZonedDateTime> t0 = sparkSession.broadcast(_t0);
     
-    // import risk factor data, map to connector and broadcast
+    // import risk factor data, map to connector
     JavaRDD<String> riskFactor = sparkSession.read().textFile(riskfactorsFile).javaRDD(); // contract data
     JavaPairRDD<String, String[]> riskFactorRDD = riskFactor.mapToPair(temp -> new Tuple2<String, String[]>(temp.split(";")[0], temp.split(";")));
-//    JavaPairRDD<String, String[]> riskFactorRDD = riskFactor.mapToPair(
-//      new PairFunction<String, String, String[]>() {
-//        public Tuple2<String, String[]> call(String s) {
-//          String[] temp = s.split(";");
-//          return new Tuple2(temp[0], temp);
-//        }
-//      });    
+  
     //Debug Info
     if(debug.equals("debug")){
     	System.out.println(riskFactorRDD.first());
     }
-    //Broadcast<Map<String,String[]>> riskFactors = riskFactorRDD.collectAsMap();
     
 	// import and map contract data to contract event results
     JavaRDD<String> contractFile = sparkSession.read().textFile(contractsFile).javaRDD(); // contract data
     JavaRDD<Row> events = contractFile.map(new ContractToEventsFunction(_t0, riskFactorRDD.collectAsMap()));
-   // JavaRDD<Row> events = contractFile.map(new ContractToEventsFunction(t0, riskFactors));
-    
-    
-//   // Jede Zeile Verarbeiten:
-//    JavaRDD<Row> eventsflat = events.flatMap(new FlatMapFunction<Row, Row>() {
-//        @Override
-//        public Iterator<Row> call(Row row) throws Exception {
-//          //Dynamische Grösse der Arrays pro Zeile:
-//          int size =Array.getLength((String[]) row.get(0));
-//          
-//          //Ausgabefile erstellen
-//          JavaRDD<Row> Zeilen; 
-//          
-//          //eine Ziele pro Ausgabe
-//          for (int i=0; i < Array.getLength((String[]) row.get(0)); i++){
-//            Zeilen.union(  row.get(0)[i] //"id",
-//            			+";"+ row.get(1)[i] // "date"
-//            			+";"+ row.get(2)[i] // "type"
-//            			+";"+ row.get(3)[i] // "currency"
-//            			+";"+ (String) row.get(4)[i] // "value"
-//            			+";"+ (String) row.get(5)[i] // "nominal"
-//            			+";"+ (String) row.get(6)[i] // ("accrued"
-//            			);
-//          }
-//          
-//          return Zeilen;
-//        }
-//      });
-  
-//    JavaRDD<Row> eventsflat = events.flatMap(zeile -> 
-//
-//    	JavaRDD<String> words =
-//    		    lines.flatMap(line -> Arrays.asList(line.split(" ")));
-//    		JavaPairRDD<String, Integer> counts =
-//    		    words.mapToPair(w -> new Tuple2<String, Integer>(w, 1))
-//    		         .reduceByKey((x, y) -> x + y);
-//    		counts.saveAsTextFile("hdfs://counts.txt");
-    	
-    	
-    
-
-    
+	
     // convert to DataFrame
     StructType eventsSchema = DataTypes
             .createStructType(new StructField[] {
@@ -134,20 +88,10 @@ public class MapContractsToEventsJob {
                 DataTypes.createStructField("value", DataTypes.createArrayType(DataTypes.DoubleType), false),
                 DataTypes.createStructField("nominal", DataTypes.createArrayType(DataTypes.DoubleType), false),
                 DataTypes.createStructField("accrued", DataTypes.createArrayType(DataTypes.DoubleType), false)});
-    //Dataset<Row> cachedEvents = sparkSession.emptyDataFrame();
     
-    
-   // Dataset<Row> test =  createDataFrame(new java.util.List<Row>()  rows,eventsSchema);
-  //  JavaRDD<Row> empty1 = [id: int, name: string];
-//    JavaRDD<Row> empty = sparkSession.createDataFrame(empty1,eventsSchema);
-//    Dataset<Row> cachedEvents = sparkSession.createDataFrame(emptyRDD(), eventsSchema).cache();
-       Dataset<Row> cachedEvents = sparkSession.createDataFrame(events, eventsSchema).cache();
+    //Data Frame erstellen
+    Dataset<Row> cachedEvents = sparkSession.createDataFrame(events, eventsSchema).cache();
  	
-    
-    //For SQL Querying:
- 	//cachedEvents.registerTempTable("events");
-    cachedEvents.createOrReplaceTempView("events");
-
     //Debug Info
     if(debug.equals("debug")){
 	    cachedEvents.printSchema();
@@ -157,36 +101,60 @@ public class MapContractsToEventsJob {
  // DataFrames can be saved as Parquet files, maintaining the schema information.
  	cachedEvents.write().parquet(outputPath + "events.parquet");
  	
-//Data is now ready and it's possible to query the data:
- 	 
+	
+	//Ende der Zeitmessung:
+    long stop = System.currentTimeMillis();
+ 	
+//    //Hier wird die Zeit für das Logging mit Parquet weggeschrieben. 
+//	try {
+//		//File einlesen
+//		Dataset<Row> logCSV = sparkSession.read().parquet(logPath+"log");
+//	    if(debug.equals("debug")){
+//	    	logCSV.show();
+//	    	}
+//	    //Zusätzliche Zeile erstellen
+//		Dataset<Row> logNewLine = sparkSession.sql("SELECT '"+className+"','"+ram+"','"+size+"','"+knoten+"','"+run+"','"+(stop-start)+"'");
+//	    if(debug.equals("debug")){
+//	    	logNewLine.show();
+//	    	}
+//		logCSV = logCSV.union(logNewLine);
+//	    if(debug.equals("debug")){
+//	    	logCSV.show();
+//	    	}
+//		logCSV.write().mode("Append").parquet(logPath+"log");
+//	} catch (Exception e) {
+//		// TODO Auto-generated catch block
+//		e.printStackTrace();
+//	}
     
+//Data is now ready and it's possible to query the data:
+    
+    //For SQL Querying:
+ 	//cachedEvents.registerTempTable("events");
+//    cachedEvents.createOrReplaceTempView("events");
+   
 // 	results.registerTempTable("events");
 // 	DataFrame dfCount = 	results
 //				.sqlContext().sql("SELECT COUNT(*) "
 //								+ "FROM events ");
 // 	dfCount.show();
-     
- 	 
- 	 // This is not necessary any more
-// 	// count records or save file
-//    if (way.equals("count")){
-//    	results.registerTempTable("events");
-//    	DataFrame dfCount = 	results
-//				.sqlContext().sql("SELECT COUNT(*) "
-//								+ "FROM events ");
-//    	dfCount.show();
-//    }
-//    else {
-// 	 results.javaRDD().saveAsTextFile(outputPath);
-//    }
-    
-    
-    
-    // stop spark context
+
+	// stop spark Session
     sparkSession.stop();
     
-    // print time measurements
-     // System.out.println(way);
-    System.out.println("stopped time in Sec.: " + (System.currentTimeMillis()-start)/1000);
+    //Alternativ Logging to Filestore
+    //Hier wird die Zeit für das Logging weggeschrieben. 
+  	try {
+  		//  Pfad erstellen
+  	    URI pfad = new URI("file:///home/user/log.csv");
+  		//File einlesen
+  	  List<String> lines = Files.readAllLines(Paths.get(pfad));
+	  lines.add(className+","+ram+","+size+","+knoten+","+run+","+(stop-start));
+  	  Files.write(Paths.get(pfad), lines);
+  	} catch (Exception e) {
+  		// TODO Auto-generated catch block
+  		e.printStackTrace();
+  	}
+   
   }
 }
