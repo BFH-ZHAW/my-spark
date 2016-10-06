@@ -148,6 +148,8 @@ public class ContToEvExtFlatFunc implements FlatMapFunction<String,Row> {
 
           //stucture results als array of Rows
           int nEvents = events.size();
+          String[] rs = new String[nEvents];
+          String[] po = new String[nEvents];
           String[] id = new String[nEvents];
           String[] dt = new String[nEvents];
           String[] cur = new String[nEvents];
@@ -156,6 +158,8 @@ public class ContToEvExtFlatFunc implements FlatMapFunction<String,Row> {
           Double[] di = new Double[nEvents]; //discountedInterest
           StateSpace states;
           for(int i=0;i<nEvents;i++) {
+        	rs[i] = (s.split(";"))[6];
+        	po[i] = "RF"; //Muss noch ausgearbeitet werden. 
             dt[i] = events.get(i).getEventDate().toString();
             cur[i] = events.get(i).getEventCurrency().toString();
             states = events.get(i).getStates();
@@ -166,15 +170,16 @@ public class ContToEvExtFlatFunc implements FlatMapFunction<String,Row> {
           Arrays.fill(id,0,nEvents,pamModel.getContractID());
         
           //Row with Arrays
-          Row results = RowFactory.create(events.get,  	  
-        		  						 rp,
+          Row results = RowFactory.create(rs,  	  
+        		  						 po,
         		  						 id,
                                          dt,
                                          events.getEventTypes(),
                                          cur,
                                          events.getEventValues(),
                                          nv,
-                                         na);
+                                         na,
+                                         di);
          
           //Dynamische Grösse der Arrays pro Zeile:
           int size =Array.getLength(results.get(0));
