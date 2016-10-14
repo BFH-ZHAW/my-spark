@@ -2,8 +2,11 @@ package com.bruttel.actus;
 
 
 import org.apache.spark.sql.Row;
+import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.sql.RowFactory;
+
+import scala.Tuple2;
 
 import org.actus.conversion.DateConverter;
 import org.actus.contracttypes.PrincipalAtMaturity;
@@ -25,16 +28,16 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
+
 
 @SuppressWarnings("serial")
-public class ContToEvExtFlatFunc implements FlatMapFunction<String,Row> {
+public class ContToEvExtFlatFunc implements FlatMapFunction< Tuple2<String[], String[]> ,Row> {
 	  ZonedDateTime t0;
-	  Map<String,String[]> riskFactors;
+
   
-	  public ContToEvExtFlatFunc(ZonedDateTime t0, Map<String,String[]> riskFactors) {
+	  public ContToEvExtFlatFunc(ZonedDateTime t0) {
 		  this.t0 = t0;
-		  this.riskFactors = riskFactors;
+
 	  }
 	   	  
 	//Methode um das Maturity Modell zu berechnen  
@@ -78,6 +81,7 @@ public class ContToEvExtFlatFunc implements FlatMapFunction<String,Row> {
       // yield curve correction missing
         model.setPremiumDiscountAtIED(Double.parseDouble(terms[39]));
         
+        
       
     } catch (Exception e) {
       System.out.println(e.getClass().getName() + 
@@ -87,8 +91,8 @@ public class ContToEvExtFlatFunc implements FlatMapFunction<String,Row> {
     return model;
   }
     
-    //Methode um den RisikoFacktor zu berechnen
-    private static RiskFactorConnector mapRF(Map<String,String[]> rfData, 
+    //Methode um den RisikoFaktor zu berechnen
+    private static RiskFactorConnector mapRF(String[] rfData, 
                                            String marketObjectCodeRateReset,
                                            String marketObjectCodeScaling,
                                            ZonedDateTime t0) {
@@ -98,10 +102,11 @@ public class ContToEvExtFlatFunc implements FlatMapFunction<String,Row> {
     SimpleReferenceIndex refIndex = new SimpleReferenceIndex();
     SimpleForeignExchangeRate fxRate = new SimpleForeignExchangeRate();
     String[] rf;
-    String[] keys = rfData.keySet().toArray(new String[rfData.size()]);
+    //String[] keys = rfData.keySet().toArray(new String[rfData.size()]);
     try{
       if(!marketObjectCodeRateReset.equals("NULL")) {
-       rf = rfData.get(marketObjectCodeRateReset);
+       //rf = rfData.get(marketObjectCodeRateReset);
+    	 rf = rfData;
        if(rf[2].equals("TermStructure")) {
          curve.of(t0, PeriodConverter.of(rf[3].split("!")), DoubleConverter.ofArray(rf[4],"!"));
          rfCon.add(rf[0], curve);
@@ -111,7 +116,8 @@ public class ContToEvExtFlatFunc implements FlatMapFunction<String,Row> {
        } 
       }
       if(!marketObjectCodeScaling.equals("NULL")) {
-        rf = rfData.get(marketObjectCodeScaling);
+       // rf = rfData.get(marketObjectCodeScaling);
+    	  rf = rfData;
          refIndex.of(DateConverter.of(rf[3].split("!")), DoubleConverter.ofDoubleArray(rf[4],"!"));
          rfCon.add(rf[0], refIndex);         
     	}
@@ -125,15 +131,16 @@ public class ContToEvExtFlatFunc implements FlatMapFunction<String,Row> {
   }
   
 	//Dieser Aufruf (call String) wird von der FlatMapFunction gebraucht, hier wird festgelegt, wie der Input verarbeitet wird.
-    	@Override
-		public Iterator<Row> call(String s) throws Exception {
+    
+    @Override
+		public Iterator<Row> call(Tuple2<String[], String[]> s) throws Exception {
           
           // map input file to contract model 
           // (note, s is a single line of the input file)
-          PrincipalAtMaturityModel pamModel = mapTerms(s.split(";"));
+          PrincipalAtMaturityModel pamModel = mapTerms(s._1());
           
           // map risk factor data to actus connector
-          RiskFactorConnector rfCon = mapRF(riskFactors, 
+          RiskFactorConnector rfCon = mapRF(s._2(), 
                   pamModel.getMarketObjectCodeRateReset(),
                   pamModel.getMarketObjectCodeOfScalingIndex(),
                   t0);
@@ -148,8 +155,8 @@ public class ContToEvExtFlatFunc implements FlatMapFunction<String,Row> {
 
           //stucture results als array of Rows
           int nEvents = events.size();
-          String[] rs = new String[nEvents];
-          String[] po = new String[nEvents];
+          String[] rs = new String[nEvents]; //Risk Set
+          String[] po = new String[nEvents]; //Portfolio
           String[] id = new String[nEvents];
           String[] dt = new String[nEvents];
           String[] cur = new String[nEvents];
@@ -158,8 +165,8 @@ public class ContToEvExtFlatFunc implements FlatMapFunction<String,Row> {
           Double[] di = new Double[nEvents]; //discountedInterest
           StateSpace states;
           for(int i=0;i<nEvents;i++) {
-        	rs[i] = (s.split(";"))[6];
-        	po[i] = "RF"; //Muss noch ausgearbeitet werden. 
+        	rs[i] = s._2()[1];//RiskSet
+        	po[i] = s._1()[44]; //Portfolio 
             dt[i] = events.get(i).getEventDate().toString();
             cur[i] = events.get(i).getEventCurrency().toString();
             states = events.get(i).getStates();

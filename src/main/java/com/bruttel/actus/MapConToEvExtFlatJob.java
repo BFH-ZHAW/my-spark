@@ -68,7 +68,7 @@ public class MapConToEvExtFlatJob {
     }
     
     // import risk factor data, map to connector and broadcast
-    JavaRDD<String> riskFactor = sparkSession.read().textFile(riskfactorsFile).javaRDD(); // contract data
+    JavaRDD<String> riskFactor = sparkSession.read().textFile(riskfactorsFile).javaRDD(); // risiko data
     JavaPairRDD<String, String[]> riskFactorRDD = riskFactor.mapToPair(temp -> new Tuple2<String, String[]>(temp.split(";")[0], temp.split(";")));
    
     //Debug Info
@@ -78,7 +78,9 @@ public class MapConToEvExtFlatJob {
     
 	// import and FLATMAP contract data to contract event results
     JavaRDD<String> contractFile = sparkSession.read().textFile(contractsFile).javaRDD(); // contract data
-	JavaRDD<Row> events = contractFile.flatMap(new ContToEvExtFlatFunc(_t0, riskFactorRDD.collectAsMap()));
+    JavaPairRDD<String, String[]> contractFileRDD = contractFile.mapToPair(temp -> new Tuple2<String, String[]>(temp.split(";")[33], temp.split(";")));
+    JavaPairRDD<String, Tuple2<String[], String[]>> contractsAndRisk = contractFileRDD.join(riskFactorRDD);
+	JavaRDD<Row> events = contractsAndRisk.values().flatMap(new ContToEvExtFlatFunc(_t0));
 	
     // Create DataFrame Schema
     StructType eventsSchema = DataTypes
@@ -96,7 +98,7 @@ public class MapConToEvExtFlatJob {
                 });
     
     // Data Frame erstellen
-	Dataset<Row> cachedEvents = sparkSession.createDataFrame(events, eventsSchema).cache();
+	Dataset<Row> cachedEvents = sparkSession.createDataFrame(events, eventsSchema);
 
     //Debug Info
     if(debug.equals("debug")){
