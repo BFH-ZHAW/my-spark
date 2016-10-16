@@ -20,6 +20,7 @@ import org.actus.misc.riskfactormodels.SpotRateCurve;
 import org.actus.misc.riskfactormodels.SimpleReferenceRate;
 import org.actus.misc.riskfactormodels.SimpleReferenceIndex;
 import org.actus.misc.riskfactormodels.SimpleForeignExchangeRate;
+import org.actus.financial.conventions.daycount.ActualThreeSixtyFiveFixed;
 
 import javax.time.calendar.ZonedDateTime;
 
@@ -132,13 +133,21 @@ public class ContToEvExtFlatFunc implements FlatMapFunction< Tuple2<String[], St
   
 	//Dieser Aufruf (call String) wird von der FlatMapFunction gebraucht, hier wird festgelegt, wie der Input verarbeitet wird.
     
+//    - Neues Feild: IdiosyncraticSpread: double type
+//    - Vor der schlaufe: RiskFactorConnector erstellen (brauchen wir sowieso für die berechnung der events)
+//    - In der schlaufe: für event mit currency XX und date YY, aus RiskFactorConnector zinskurvenobjekt mit schlüssel YC_XX auslesen. 
+//    	Aus zinskurvenobject YC_XX dann den zins für datum YY holen mittels „.getRate(AD0, YY)“ -> 
+//      diskont faktor rechnen: Math.exp(-YearFraction(AD0,YY)*(zins+IdiosyncraticSpread)
+    
+//    - Dann, diskont faktor als weitere spalte an events array anhängen
+    
     @Override
 		public Iterator<Row> call(Tuple2<String[], String[]> s) throws Exception {
           
           // map input file to contract model 
           // (note, s is a single line of the input file)
           PrincipalAtMaturityModel pamModel = mapTerms(s._1());
-          
+                   
           // map risk factor data to actus connector
           RiskFactorConnector rfCon = mapRF(s._2(), 
                   pamModel.getMarketObjectCodeRateReset(),
@@ -172,6 +181,8 @@ public class ContToEvExtFlatFunc implements FlatMapFunction< Tuple2<String[], St
             states = events.get(i).getStates();
             nv[i] = states.getNominalValue();
             na[i] = states.getNominalAccrued();
+//            Zins = getRate(t0, events.get(i).getEventDate())
+//            Math.exp()		
             di[i] = states.getInterestCalculationBase(); //Ist das richtig? oder: states.getMaximumDeferredInterest()          
           }
           Arrays.fill(id,0,nEvents,pamModel.getContractID());

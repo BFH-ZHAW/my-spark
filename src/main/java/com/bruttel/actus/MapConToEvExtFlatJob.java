@@ -24,24 +24,28 @@ import java.util.List;
 public class MapConToEvExtFlatJob {
 
   public static void main(String[] args) {
-    if (args.length != 10) {
-      System.err.println("Usage: contractFile riskfactorsFile timespecsFile outputPath debug logPath ram size run knoten");
+    if (args.length != 9) {
+      System.err.println("Usage: path contractFile riskfactorsFile timespecsFile debug ram size run knoten");
       System.exit(0);
     }
     //Input Parameter:
-    String contractsFile = args[0]; //hdfs://160.85.30.40/user/spark/data/contracts_10000000.csv 
-    String riskfactorsFile = args[1]; //hdfs://160.85.30.40/user/spark/data/riskfactors_input.csv 
-    String timespecsFile = args[2]; //hdfs://160.85.30.40/user/spark/data/timespecs_input.csv 
-    String outputPath = args[3]; //hdfs://160.85.30.40/user/spark/data/output/; 
+    String path = args[0]; //hdfs://160.85.30.40/user/spark/data/
+    String contractsFile = path.concat(args[1]); //contracts_10000000.csv 
+    String riskfactorsFile = path.concat(args[2]); //riskfactors_input.csv 
+    String timespecsFile = path.concat(args[3]); //timespecs_input.csv 
+    //String outputPath = args[3]; //hdfs://160.85.30.40/user/spark/data/output/; 
     String debug = args[4];  //write debug to debug or anything else to not debug
-    String logPath =args[5]; //hdfs://160.85.30.40/user/spark/data/ Hier wird das Logfile geschrieben
-    String ram =args[6]; //12GB wird fürs Log Gebraucht
-    String size =args[7]; //3GB wird fürs Log gebraucht
-    String run =args[8]; //1-10 wird fürs Log gebraucht
-    String knoten =args[9]; //1-8 wird fürs Log gebraucht
+    //String logPath =args[5]; //hdfs://160.85.30.40/user/spark/data/ Hier wird das Logfile geschrieben
+    String ram =args[5]; //12GB wird fürs Log Gebraucht
+    String size =args[6]; //3GB wird fürs Log gebraucht
+    String run =args[7]; //1-10 wird fürs Log gebraucht
+    String knoten =args[8]; //1-8 wird fürs Log gebraucht
+    
+    String outputPath = path.concat("output/");
+    
     
     //Klassenname wird wieder verwendet:    
-    String className = "com.bruttel.actus.MapContractsToEventsFlatJob";
+    String className = "com.bruttel.actus.MapConToEvExtFlatJob";
 
     //Create Spark Session
     SparkSession sparkSession = SparkSession
