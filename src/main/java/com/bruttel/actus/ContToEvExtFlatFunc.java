@@ -9,19 +9,26 @@ import org.apache.spark.sql.RowFactory;
 import scala.Tuple2;
 
 import org.actus.conversion.DateConverter;
+import org.actus.conversion.DayCounterConverter;
 import org.actus.contracttypes.PrincipalAtMaturity;
 import org.actus.models.PrincipalAtMaturityModel;
 import org.actus.util.time.EventSeries;
 import org.actus.conversion.PeriodConverter;
+import org.actus.enumerations.DayCountConventions;
 import org.actus.conversion.DoubleConverter;
 import org.actus.contractstates.StateSpace;
+import org.actus.riskfactors.InterestRateConnector;
 import org.actus.riskfactors.RiskFactorConnector;
+import org.actus.time.DayCounter;
 import org.actus.misc.riskfactormodels.SpotRateCurve;
 import org.actus.misc.riskfactormodels.SimpleReferenceRate;
 import org.actus.misc.riskfactormodels.SimpleReferenceIndex;
 import org.actus.misc.riskfactormodels.SimpleForeignExchangeRate;
 import org.actus.financial.conventions.daycount.ActualThreeSixtyFiveFixed;
+import org.actus.financial.conventions.daycount.DayCount;
+import org.actus.financial.conventions.daycount.DayCountConvention;
 
+import javax.time.calendar.Period;
 import javax.time.calendar.ZonedDateTime;
 
 import java.lang.reflect.Array;
@@ -137,11 +144,12 @@ public class ContToEvExtFlatFunc implements FlatMapFunction< Tuple2<String[], St
 //    - Vor der schlaufe: RiskFactorConnector erstellen (brauchen wir sowieso für die berechnung der events)
 //    - In der schlaufe: für event mit currency XX und date YY, aus RiskFactorConnector zinskurvenobjekt mit schlüssel YC_XX auslesen. 
 //    	Aus zinskurvenobject YC_XX dann den zins für datum YY holen mittels „.getRate(AD0, YY)“ -> 
-//      diskont faktor rechnen: Math.exp(-YearFraction(AD0,YY)*(zins+IdiosyncraticSpread)
+//      diskont faktor rechnen: Math.exp(-YearFraction(AD0,YY)*(zins+IdiosyncraticSpread) => Risiko des Kontrakts (Zusätzlicher Aufschlag) 
     
 //    - Dann, diskont faktor als weitere spalte an events array anhängen
     
-    @Override
+    @SuppressWarnings("unchecked")
+	@Override
 		public Iterator<Row> call(Tuple2<String[], String[]> s) throws Exception {
           
           // map input file to contract model 
@@ -161,7 +169,11 @@ public class ContToEvExtFlatFunc implements FlatMapFunction< Tuple2<String[], St
           pamCT.generateEvents(t0);
           pamCT.processEvents(t0);
           EventSeries events = pamCT.getProcessedEventSeries();
-
+          
+          //Wird für den Diskontfaktor gebraucht
+          InterestRateConnector<SpotRateCurve> inRate = (InterestRateConnector<SpotRateCurve>) rfCon.get(rfCon.getKeys()[0]);
+          DayCounter dc = DayCounterConverter.of(DayCountConventions.ActualActualISDA);
+         
           //stucture results als array of Rows
           int nEvents = events.size();
           String[] rs = new String[nEvents]; //Risk Set
@@ -181,9 +193,8 @@ public class ContToEvExtFlatFunc implements FlatMapFunction< Tuple2<String[], St
             states = events.get(i).getStates();
             nv[i] = states.getNominalValue();
             na[i] = states.getNominalAccrued();
-//            Zins = getRate(t0, events.get(i).getEventDate())
-//            Math.exp()		
-            di[i] = states.getInterestCalculationBase(); //Ist das richtig? oder: states.getMaximumDeferredInterest()          
+                 Double zins = inRate.getRateAt(t0, Period.between(t0, events.get(i).getEventDate()));
+            di[i] = Math.exp(-dc.yearFraction(t0, events.get(i).getEventDate())*(zins)); //Diskontfaktor        
           }
           Arrays.fill(id,0,nEvents,pamModel.getContractID());
         
