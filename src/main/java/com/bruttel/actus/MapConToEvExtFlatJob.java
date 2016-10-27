@@ -24,24 +24,26 @@ import java.util.List;
 public class MapConToEvExtFlatJob {
 
   public static void main(String[] args) {
-    if (args.length != 9) {
-      System.err.println("Usage: path contractFile riskfactorsFile timespecsFile debug ram size run knoten");
+    if (args.length != 8) {
+      System.err.println("Usage: path contractFile riskfactorsFile timespecsFile debug ram run knoten");
       System.exit(0);
     }
     //Input Parameter:
     String path = args[0]; //hdfs://160.85.30.40/user/spark/data/
-    String contractsFile = path.concat(args[1]); //contracts_10000000.csv 
-    String riskfactorsFile = path.concat(args[2]); //riskfactors_input.csv 
+    String contracts = args[1]; //contracts_10000000.csv 
+    String riskfactors = args[2]; //riskfactors_input.csv 
     String timespecsFile = path.concat(args[3]); //timespecs_input.csv 
     //String outputPath = args[3]; //hdfs://160.85.30.40/user/spark/data/output/; 
     String debug = args[4];  //write debug to debug or anything else to not debug
     //String logPath =args[5]; //hdfs://160.85.30.40/user/spark/data/ Hier wird das Logfile geschrieben
     String ram =args[5]; //12GB wird fürs Log Gebraucht
-    String size =args[6]; //3GB wird fürs Log gebraucht
-    String run =args[7]; //1-10 wird fürs Log gebraucht
-    String knoten =args[8]; //1-8 wird fürs Log gebraucht
+    //String size =args[6]; //3GB wird fürs Log gebraucht
+    String run =args[6]; //1-10 wird fürs Log gebraucht
+    String knoten =args[7]; //1-8 wird fürs Log gebraucht
     
     String outputPath = path.concat("output/");
+    String contractsFile = path.concat(contracts); //contracts_10000000.csv 
+    String riskfactorsFile = path.concat(riskfactors); //riskfactors_input.csv
     
     
     //Klassenname wird wieder verwendet:    
@@ -82,7 +84,7 @@ public class MapConToEvExtFlatJob {
     
 	// import and FLATMAP contract data to contract event results
     JavaRDD<String> contractFile = sparkSession.read().textFile(contractsFile).javaRDD(); // contract data
-    JavaPairRDD<String, String[]> contractFileRDD = contractFile.mapToPair(temp -> new Tuple2<String, String[]>(temp.split(";")[33], temp.split(";")));
+    JavaPairRDD<String, String[]> contractFileRDD = contractFile.mapToPair(temp -> new Tuple2<String, String[]>(temp.split(";")[40], temp.split(";")));
     JavaPairRDD<String, Tuple2<String[], String[]>> contractsAndRisk = contractFileRDD.join(riskFactorRDD);
 	JavaRDD<Row> events = contractsAndRisk.values().flatMap(new ContToEvExtFlatFunc(_t0));
 	
@@ -159,10 +161,10 @@ public class MapConToEvExtFlatJob {
   //Hier wird die Zeit für das Logging weggeschrieben. 
 	try {
 		//  Pfad erstellen
-	    URI pfad = new URI("file:///home/user/log.csv");
+	    URI pfad = new URI("file:///home/user/log2.csv");
 		//File einlesen
 	  List<String> lines = Files.readAllLines(Paths.get(pfad));
-	  lines.add(className+","+ram+","+size+","+knoten+","+run+","+(stop-start));
+	  lines.add(className+","+ram+","+contracts+","+riskfactors+","+knoten+","+run+","+(stop-start));
 	  Files.write(Paths.get(pfad), lines);
 	} catch (Exception e) {
 		// TODO Auto-generated catch block

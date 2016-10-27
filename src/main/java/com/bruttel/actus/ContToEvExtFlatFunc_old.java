@@ -39,11 +39,11 @@ import java.util.List;
 
 
 @SuppressWarnings("serial")
-public class ContToEvExtFlatFunc implements FlatMapFunction< Tuple2<String[], String[]> ,Row> {
+public class ContToEvExtFlatFunc_old implements FlatMapFunction< Tuple2<String[], String[]> ,Row> {
 	  ZonedDateTime t0;
 
   
-	  public ContToEvExtFlatFunc(ZonedDateTime t0) {
+	  public ContToEvExtFlatFunc_old(ZonedDateTime t0) {
 		  this.t0 = t0;
 
 	  }
@@ -170,37 +170,66 @@ public class ContToEvExtFlatFunc implements FlatMapFunction< Tuple2<String[], St
           pamCT.processEvents(t0);
           EventSeries events = pamCT.getProcessedEventSeries();
           
-          
-          //Wird pro Event gebraucht:
-          //Für den Diskont Faktor
+          //Wird für den Diskontfaktor gebraucht
           InterestRateConnector<SpotRateCurve> inRate = (InterestRateConnector<SpotRateCurve>) rfCon.get(rfCon.getKeys()[0]);
           DayCounter dc = DayCounterConverter.of(DayCountConventions.ActualActualISDA);
-          String riskSet = s._2()[1]; // "riskSet",
-          String portfolio = s._1()[44]; // "portfolio",
-		  String id =	pamModel.getContractID(); // "id",
           Double creditSpread = Double.parseDouble(s._1()[41]);
           Double idiosyncraticSpread = Double.parseDouble(s._1()[42]);
-          
-          //Dynamische Grösse der Events:
-          int size =events.size();
+
+          //stucture results als array of Rows
+          int nEvents = events.size();
+          String[] rs = new String[nEvents]; //Risk Set
+          String[] po = new String[nEvents]; //Portfolio
+          String[] id = new String[nEvents];
+          String[] dt = new String[nEvents];
+          String[] cur = new String[nEvents];
+          Double[] nv = new Double[nEvents];
+          Double[] na = new Double[nEvents];
+          Double[] di = new Double[nEvents]; //discountedInterest
+          StateSpace states;
+          for(int i=0;i<nEvents;i++) {
+        	rs[i] = s._2()[1];//RiskSet
+        	po[i] = s._1()[44]; //Portfolio 
+            dt[i] = events.get(i).getEventDate().toString();
+            cur[i] = events.get(i).getEventCurrency().toString();
+            states = events.get(i).getStates();
+            nv[i] = states.getNominalValue();
+            na[i] = states.getNominalAccrued();
+                 Double zins = inRate.getRateAt(t0, Period.between(t0, events.get(i).getEventDate()));
+            di[i] = Math.exp(-dc.yearFraction(t0, events.get(i).getEventDate())*(zins+creditSpread+idiosyncraticSpread)); //Diskontfaktor    
+          }
+          Arrays.fill(id,0,nEvents,pamModel.getContractID());
+        
+          //Row with Arrays
+          Row results = RowFactory.create(rs,  	  
+        		  						 po,
+        		  						 id,
+                                         dt,
+                                         events.getEventTypes(),
+                                         cur,
+                                         events.getEventValues(),
+                                         nv,
+                                         na,
+                                         di);
+         
+          //Dynamische Grösse der Arrays pro Zeile:
+          int size =Array.getLength(results.get(0));
             
           //Ausgabefile erstellen (Ausgabe ist Row, aber RowList ist mehrfaches von Row und somit bei Flatmap erlaubt)
 		  List<Row> rowList = new ArrayList<>();
                     
-		  //eine Ziele pro Event
-            for (int i=0; i < size ; i++){ 
-            StateSpace states = events.get(i).getStates();
-            Double zins = inRate.getRateAt(t0, Period.between(t0, events.get(i).getEventDate()));
-      		rowList.add(RowFactory.create(  riskSet, // "riskSet",
-      										portfolio, // "portfolio",
-      										id, // "id",
-      										events.get(i).getEventDate().toString(), // "date"
-			              					events.get(i).getEventType(), // "type"
-			              					events.get(i).getEventCurrency().toString(), // "currency"
-			              					events.get(i).getEventValue(), // "value"
-			              					states.getNominalValue(), // "nominal"
-			              					states.getNominalAccrued(), // "accrued"
-			              					Math.exp(-dc.yearFraction(t0, events.get(i).getEventDate())*(zins+creditSpread+idiosyncraticSpread))  // "defferedInterest",
+		  //eine Ziele pro Ausgabe
+            for (int i=0; i < size ; i++){       	
+      		rowList.add(RowFactory.create(  Array.get((results.get(0)), i ), // "riskFactor",
+      										Array.get((results.get(1)), i ), // "portfolio",
+      										Array.get((results.get(2)), i ), // "id",
+			              					Array.get((results.get(3)), i ), // "date"
+			              					Array.get((results.get(4)), i ), // "type"
+			              					Array.get((results.get(5)), i ), // "currency"
+			              					Array.get((results.get(6)), i ), // "value"
+			              					Array.get((results.get(7)), i ), // "nominal"
+			              					Array.get((results.get(8)), i ), // "accrued"
+			              					Array.get((results.get(9)), i )  // "defferedInterest",
 			              				));
             }
 
