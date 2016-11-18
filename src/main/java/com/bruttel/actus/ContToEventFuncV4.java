@@ -36,58 +36,58 @@ import java.util.List;
 
 
 @SuppressWarnings("serial")
-public class ContToEvExtFlatFunc implements FlatMapFunction< Tuple2<String[], String[]> ,Row> {
+public class ContToEventFuncV4 implements FlatMapFunction<Row, Row> {
 	  ZonedDateTime t0;
+	  List<Row> risks;
+	 // The method flatMap(Function1<Row,TraversableOnce<U>>, Encoder<U>) in the type Dataset<Row> is not applicable for the arguments (ContToEventFunc)
 
-  
-	  public ContToEvExtFlatFunc(ZonedDateTime t0) {
+	  public ContToEventFuncV4(List<Row> risks, ZonedDateTime t0) {
 		  this.t0 = t0;
+		  this.risks = risks; 
 
 	  }
 	   	  
 	//Methode um das Maturity Modell zu berechnen  
-    private static PrincipalAtMaturityModel mapTerms(String[] terms) {
+    private static PrincipalAtMaturityModel mapTerms(Row terms) {
     		PrincipalAtMaturityModel model = new PrincipalAtMaturityModel();
     try{
-    		model.setStatusDate(terms[4]);
-        model.setContractRole(terms[5]);
-        model.setContractID(terms[7]);
-        model.setCycleAnchorDateOfInterestPayment(terms[9]);
-        model.setCycleOfInterestPayment(terms[10]);
-        model.setNominalInterestRate(Double.parseDouble(terms[11]));
-        model.setDayCountConvention(terms[12]);
+    		model.setStatusDate(terms.getString(4));
+        model.setContractRole(terms.getString(5));
+        model.setContractID(terms.getString(7));
+        model.setCycleAnchorDateOfInterestPayment(terms.getString(9));
+        model.setCycleOfInterestPayment(terms.getString(10));
+        model.setNominalInterestRate(Double.parseDouble(terms.getString(11)));
+        model.setDayCountConvention(terms.getString(12));
         // accrued interest
         // ipced
         // cey
         // ipcp
-        model.setCurrency(terms[16]);
-        model.setContractDealDate(terms[17]);
-        model.setInitialExchangeDate(terms[18]);
-        model.setMaturityDate(terms[19]);
-        model.setNotionalPrincipal(Double.parseDouble(terms[20]));
-        model.setPurchaseDate(terms[21]);
-              model.setPriceAtPurchaseDate(Double.parseDouble(terms[22]));
-        model.setTerminationDate(terms[23]);
-              model.setPriceAtTerminationDate(Double.parseDouble(terms[24]));
-        model.setMarketObjectCodeOfScalingIndex(terms[25]);
-        model.setScalingIndexAtStatusDate(Double.parseDouble(terms[26]));
+        model.setCurrency(terms.getString(16));
+        model.setContractDealDate(terms.getString(17));
+        model.setInitialExchangeDate(terms.getString(18));
+        model.setMaturityDate(terms.getString(19));
+        model.setNotionalPrincipal(Double.parseDouble(terms.getString(20)));
+        model.setPurchaseDate(terms.getString(21));
+              model.setPriceAtPurchaseDate(Double.parseDouble(terms.getString(22)));
+        model.setTerminationDate(terms.getString(23));
+              model.setPriceAtTerminationDate(Double.parseDouble(terms.getString(24)));
+        model.setMarketObjectCodeOfScalingIndex(terms.getString(25));
+        model.setScalingIndexAtStatusDate(Double.parseDouble(terms.getString(26)));
         //model.setCycleAnchorDateOfScalingIndex(terms[28]);
         //model.setCycleOfScalingIndex(terms[29]);
         //model.setScalingEffect(terms[30]);
-        model.setCycleAnchorDateOfRateReset(terms[30]);
-        model.setCycleOfRateReset(terms[31]);
-        model.setRateSpread(Double.parseDouble(terms[32]));
-        model.setMarketObjectCodeRateReset(terms[33]);
-        model.setCyclePointOfRateReset(terms[34]);
-        model.setFixingDays(terms[35]);
-        model.setNextResetRate(Double.parseDouble(terms[36]));
-        model.setRateMultiplier(Double.parseDouble(terms[37]));
-        model.setRateTerm(terms[38]);
+        model.setCycleAnchorDateOfRateReset(terms.getString(30));
+        model.setCycleOfRateReset(terms.getString(31));
+        model.setRateSpread(Double.parseDouble(terms.getString(32)));
+        model.setMarketObjectCodeRateReset(terms.getString(33));
+        model.setCyclePointOfRateReset(terms.getString(34));
+        model.setFixingDays(terms.getString(35));
+        model.setNextResetRate(Double.parseDouble(terms.getString(36)));
+        model.setRateMultiplier(Double.parseDouble(terms.getString(37)));
+        model.setRateTerm(terms.getString(38));
       // yield curve correction missing
-        model.setPremiumDiscountAtIED(Double.parseDouble(terms[39]));
-        
-        
-      
+        model.setPremiumDiscountAtIED(Double.parseDouble(terms.getString(39)));
+     
     } catch (Exception e) {
       System.out.println(e.getClass().getName() + 
                          " thrown when mapping terms to ACTUS ContractModel: " +
@@ -97,7 +97,7 @@ public class ContToEvExtFlatFunc implements FlatMapFunction< Tuple2<String[], St
   }
     
     //Methode um den RisikoFaktor zu berechnen
-    private static RiskFactorConnector mapRF(String[] rfData, 
+    private static RiskFactorConnector mapRF(Row rfData, 
                                            String marketObjectCodeRateReset,
                                            String marketObjectCodeScaling,
                                            ZonedDateTime t0) {
@@ -106,25 +106,25 @@ public class ContToEvExtFlatFunc implements FlatMapFunction< Tuple2<String[], St
     SimpleReferenceRate refRate = new SimpleReferenceRate();
     SimpleReferenceIndex refIndex = new SimpleReferenceIndex();
     SimpleForeignExchangeRate fxRate = new SimpleForeignExchangeRate();
-    String[] rf;
+   // String[] rf;
     //String[] keys = rfData.keySet().toArray(new String[rfData.size()]);
     try{
       if(!marketObjectCodeRateReset.equals("NULL")) {
        //rf = rfData.get(marketObjectCodeRateReset);
-    	 rf = rfData;
-       if(rf[2].equals("TermStructure")) {
-         curve.of(t0, PeriodConverter.of(rf[3].split("!")), DoubleConverter.ofArray(rf[4],"!"));
-         rfCon.add(rf[0], curve);
-       } else if(rf[2].equals("ReferenceRate")){
-         refRate.of(DateConverter.of(rf[3].split("!")), DoubleConverter.ofDoubleArray(rf[4],"!"));
-         rfCon.add(rf[0], refRate);         
+    	// rf = rfData;
+       if(rfData.getString(2).equals("TermStructure")) {
+         curve.of(t0, PeriodConverter.of(rfData.getString(3).split("!")), DoubleConverter.ofArray(rfData.getString(4),"!"));
+         rfCon.add(rfData.getString(0), curve);
+       } else if(rfData.getString(2).equals("ReferenceRate")){
+         refRate.of(DateConverter.of(rfData.getString(3).split("!")), DoubleConverter.ofDoubleArray(rfData.getString(4),"!"));
+         rfCon.add(rfData.getString(0), refRate);         
        } 
       }
       if(!marketObjectCodeScaling.equals("NULL")) {
        // rf = rfData.get(marketObjectCodeScaling);
-    	  rf = rfData;
-         refIndex.of(DateConverter.of(rf[3].split("!")), DoubleConverter.ofDoubleArray(rf[4],"!"));
-         rfCon.add(rf[0], refIndex);         
+    	//  rf = rfData;
+         refIndex.of(DateConverter.of(rfData.getString(3).split("!")), DoubleConverter.ofDoubleArray(rfData.getString(4),"!"));
+         rfCon.add(rfData.getString(0), refIndex);         
     	}
     } catch(Exception e) {
       System.out.println(e.getClass().getName() + 
@@ -147,14 +147,23 @@ public class ContToEvExtFlatFunc implements FlatMapFunction< Tuple2<String[], St
     
     @SuppressWarnings("unchecked")
 	@Override
-		public Iterator<Row> call(Tuple2<String[], String[]> s) throws Exception {
-          
+	public Iterator<Row> call(Row r) throws Exception {
+    	// ... add some names to the collection
+    	
+        //Ausgabefile erstellen (Ausgabe ist Row, aber RowList ist mehrfaches von Row und somit bei Flatmap erlaubt)
+		List<Row> rowList = new ArrayList<>();    	
+		
+		//Hier werden die Risikoszenairen durchiteriert:
+		risks.forEach(ris -> {
+        
+		//Test ob das Risikoszenario mit dem Contract gemappt werden kann:
+		if (r.getString(40).equals(ris.get(0))){
           // map input file to contract model 
           // (note, s is a single line of the input file)
-          PrincipalAtMaturityModel pamModel = mapTerms(s._1());
+          PrincipalAtMaturityModel pamModel = mapTerms(r);
                    
           // map risk factor data to actus connector
-          RiskFactorConnector rfCon = mapRF(s._2(), 
+          RiskFactorConnector rfCon = mapRF(ris, 
                   pamModel.getMarketObjectCodeRateReset(),
                   pamModel.getMarketObjectCodeOfScalingIndex(),
                   t0);
@@ -166,24 +175,20 @@ public class ContToEvExtFlatFunc implements FlatMapFunction< Tuple2<String[], St
           pamCT.generateEvents(t0);
           pamCT.processEvents(t0);
           EventSeries events = pamCT.getProcessedEventSeries();
-          
-          
+              
           //Wird pro Event gebraucht:
           //Für den Diskont Faktor
           InterestRateConnector<SpotRateCurve> inRate = (InterestRateConnector<SpotRateCurve>) rfCon.get(rfCon.getKeys()[0]);
           DayCounter dc = DayCounterConverter.of(DayCountConventions.ActualActualISDA);
-          String riskSet = s._2()[1]; // "riskSet",
-          String portfolio = s._1()[44]; // "portfolio",
-		  String id =	pamModel.getContractID(); // "id",
-          Double creditSpread = Double.parseDouble(s._1()[41]);
-          Double idiosyncraticSpread = Double.parseDouble(s._1()[42]);
+          String riskSet = ris.getString(1); 
+          String portfolio = r.getString(44); 
+		  String id =	pamModel.getContractID(); 
+          Double creditSpread = Double.parseDouble(r.getString(41));
+          Double idiosyncraticSpread = Double.parseDouble(r.getString(42));
           
           //Dynamische Grösse der Events:
           int size =events.size();
-            
-          //Ausgabefile erstellen (Ausgabe ist Row, aber RowList ist mehrfaches von Row und somit bei Flatmap erlaubt)
-		  List<Row> rowList = new ArrayList<>();
-                    
+                   
 		  //eine Ziele pro Event
             for (int i=0; i < size ; i++){ 
             StateSpace states = events.get(i).getStates();
@@ -199,8 +204,25 @@ public class ContToEvExtFlatFunc implements FlatMapFunction< Tuple2<String[], St
 			              					states.getNominalAccrued(), // "accrued"
 			              					Math.exp(-dc.yearFraction(t0, events.get(i).getEventDate())*(zins+creditSpread+idiosyncraticSpread))  // "defferedInterest",
 			              				));
-            }
-
+            	
+            } //Ende Foor Loop
+			} //Ende Test 
+//          rowList.add(RowFactory.create( risks.get(0).getString(1), // "riskSet",
+//    		"Portofolio", //r.getString(44), // "portfolio",
+//    		"ID", //r.getString(7), // "id",
+//    		"DATE",//pamModel.getMarketObjectCodeRateReset(), //	events.get(i).getEventDate().toString(), // "date"
+//				"", //events.get(i).getEventType(), // "type"
+//				"CHF", //events.get(i).getEventCurrency().toString(), // "currency"
+//				Double.parseDouble("100"), //events.get(i).getEventValue(), // "value"
+//				Double.parseDouble("200") , //states.getNominalValue(), // "nominal"
+//				Double.parseDouble("300"), //r.getString(42)), // "accrued"
+//				Double.parseDouble("400") //r.getString(41)) // "defferedInterest",
+//			));
+    	
+    	}
+		); //Ende Foreach
+    	
+    	
   		  return rowList.iterator();
         }
       } 

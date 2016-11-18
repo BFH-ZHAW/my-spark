@@ -18,7 +18,7 @@ import java.nio.file.Paths;
 import java.util.List;
 
 
-public class MapConToEvExtFlatJobV2 {
+public class MapConToEvExtFlatJobV3 {
 
   public static void main(String[] args) {
     if (args.length != 10) {
@@ -48,7 +48,7 @@ public class MapConToEvExtFlatJobV2 {
     int partitions = Integer.parseInt(knoten)*3*2;
     
     //Klassenname wird wieder verwendet:    
-    String className = "com.bruttel.actus.MapConToEvExtFlatJobV2";
+    String className = "com.bruttel.actus.MapConToEvExtFlatJobV3";
 
     //Create Spark Session
     SparkSession sparkSession = SparkSession
@@ -65,7 +65,7 @@ public class MapConToEvExtFlatJobV2 {
      
     // import and broadcast analysis date als Dataframe
    	Dataset<Row> timespecsFile = sparkSession.read().option("header", false).csv(timespecsPath);
-   //	timespecsFile.first().getString(0);
+   //	timespecsFile.first().getString(1);
 //    JavaRDD<String> timeSpecs = sparkSession.read().textFile(timespecsFile).javaRDD(); // analysis time specification
 //    JavaRDD<String> timeVector = timeSpecs.flatMap(line -> Arrays.asList(line.split(";")).iterator());
     ZonedDateTime _t0 = null;
@@ -79,6 +79,10 @@ public class MapConToEvExtFlatJobV2 {
     if(debug.equals("debug")){
     	System.out.println(_t0);
     }
+    
+    // workaround:
+    final  ZonedDateTime t0 = _t0;
+
 //    Broadcast<ZonedDateTime> t0 = sparkContext.broadcast(_t0);
     
     // import risk factor data as Dataframe and count
@@ -101,58 +105,113 @@ public class MapConToEvExtFlatJobV2 {
     	contractsFile.show();  
     } 
     
-    //Join der Files    
-    Dataset<Row> filesJoin = contractsFile.join(riskfactorsFile, riskfactorsFile.col("MarketObjectCode").equalTo(contractsFile.col("marketObjectCodeRateReset")));
-    long joinAmount = filesJoin.count();
+//    //Join der Files    
+//    Dataset<Row> filesJoin = contractsFile.join(riskfactorsFile, riskfactorsFile.col("MarketObjectCode").equalTo(contractsFile.col("marketObjectCodeRateReset")));
+//    long joinAmount = filesJoin.count();
+//    
+//    if(debug.equals("debug")){
+//    	System.out.println("FilesJoin printSchema() und show() von Total:"+joinAmount+" Contracts");
+//    	filesJoin.printSchema();
+//    	filesJoin.show();  
+//    } 
     
-    if(debug.equals("debug")){
-    	System.out.println("FilesJoin printSchema() und show() von Total:"+joinAmount+" Contracts");
-    	filesJoin.printSchema();
-    	filesJoin.show();  
-    	System.out.println("filesJoin.javaRDD().first().getString(0)");
-    	System.out.println(filesJoin.javaRDD().first().getString(0));
-    	System.out.println(filesJoin.javaRDD().first().length());
-    	System.out.println(filesJoin.javaRDD().first());
-    	System.out.println(filesJoin.javaRDD().first().size());
-    	System.out.println(filesJoin.javaRDD().first().schema());
-    	System.out.println(filesJoin.javaRDD().first().get(0));
-		System.out.println(filesJoin.javaRDD().first().getString(4));
-        System.out.println(filesJoin.javaRDD().first().getString(5));
-        System.out.println(filesJoin.javaRDD().first().getString(7));
-        System.out.println(filesJoin.javaRDD().first().getString(7));
-        System.out.println(filesJoin.javaRDD().first().getString(10));
-        System.out.println("Problem maybe here");
-        System.out.println(Double.parseDouble(filesJoin.javaRDD().first().getString(11)));
-        System.out.println(filesJoin.javaRDD().first().getString(12));
-        System.out.println(filesJoin.javaRDD().first().getString(16));
-        System.out.println(filesJoin.javaRDD().first().getString(17));
-        System.out.println(filesJoin.javaRDD().first().getString(18));
-        System.out.println(filesJoin.javaRDD().first().getString(19));
-        System.out.println(Double.parseDouble(filesJoin.javaRDD().first().getString(20)));
-        System.out.println(filesJoin.javaRDD().first().getString(21));
-        System.out.println(Double.parseDouble(filesJoin.javaRDD().first().getString(22)));
-        System.out.println(filesJoin.javaRDD().first().getString(23));
-        System.out.println(Double.parseDouble(filesJoin.javaRDD().first().getString(24)));
-        System.out.println(filesJoin.javaRDD().first().getString(25));
-        System.out.println(Double.parseDouble(filesJoin.javaRDD().first().getString(26)));
-        System.out.println(filesJoin.javaRDD().first().getString(30));
-        System.out.println(filesJoin.javaRDD().first().getString(31));
-        System.out.println(Double.parseDouble(filesJoin.javaRDD().first().getString(22)));
-        System.out.println(filesJoin.javaRDD().first().getString(33));
-        System.out.println(filesJoin.javaRDD().first().getString(34));
-        System.out.println(filesJoin.javaRDD().first().getString(35));
-        System.out.println(Double.parseDouble(filesJoin.javaRDD().first().getString(36)));
-        System.out.println(Double.parseDouble(filesJoin.javaRDD().first().getString(37)));
-        System.out.println(filesJoin.javaRDD().first().getString(38));
-        System.out.println(Double.parseDouble(filesJoin.javaRDD().first().getString(39)));
-        System.out.println(filesJoin.javaRDD().first().getString(47));
-        System.out.println(filesJoin.javaRDD().first().getString(48));
-        System.out.println(filesJoin.javaRDD().first().getString(49));
-        System.out.println(filesJoin.javaRDD().first().getString(45));  	
+    StructType eventsSchema = DataTypes
+            .createStructType(new StructField[] {
+            	DataTypes.createStructField("riskScenario", DataTypes.StringType, false),
+            	DataTypes.createStructField("portfolio", DataTypes.StringType, false),
+            	DataTypes.createStructField("id", DataTypes.StringType, false),
+                DataTypes.createStructField("date", DataTypes.StringType, false),
+                DataTypes.createStructField("type", DataTypes.StringType, false),
+                DataTypes.createStructField("currency", DataTypes.StringType, false),
+                DataTypes.createStructField("value", DataTypes.DoubleType, false),
+                DataTypes.createStructField("nominal", DataTypes.DoubleType, false),
+                DataTypes.createStructField("accrued", DataTypes.DoubleType, false), 
+                DataTypes.createStructField("discount", DataTypes.DoubleType, false),   //Diskontierung Zins
+                });
+    
+    if (riskfactorsAmount > contractsAmount) {
+    	//Mehr Risikofaktoren als Contracts -> Beim Aufruf werden Contracts mitgegeben. 
+    	contractsFile.createOrReplaceTempView("contracts");
+    	List<Row> marketObject = sparkSession.sql("SELECT DISTINCT(MarketObjectCodeRateReset) FROM contracts").collectAsList();
     	
-    } 
+    	if(debug.equals("debug")){
+	    	System.out.println("marketobject");
+	    	System.out.println(marketObject.get(0).getString(0)); 
+	    }
+    	
+    	marketObject.forEach(mO -> {
+    		Dataset<Row> riskfactorsFiltererd = riskfactorsFile.filter(riskfactorsFile.col("MarketObjectCode").equalTo(mO.getString(0)));
+    		Dataset<Row> contractsFiltererd = contractsFile.filter(contractsFile.col("MarketObjectCodeRateReset").equalTo(mO.getString(0)));
+    		
+    		if(debug.equals("debug")){
+    	    	System.out.println("filtered");
+    	    	riskfactorsFiltererd.show();
+    	    	contractsFiltererd.show();
+    	    }
+    	
+    		
+    	    JavaRDD<Row> events = riskfactorsFiltererd.javaRDD().flatMap(new EventToContFuncV3(contractsFiltererd.collectAsList(), t0));
+    		Dataset<Row> cachedEvents = sparkSession.createDataFrame(events, eventsSchema);
+    		
+    	    if(debug.equals("debug")){
+    	    	System.out.println("cachedEvents Schema und show");
+    		    cachedEvents.printSchema();
+    		    cachedEvents.show();   
+    	    }
+    		
+    		 if(output.equals("parquet")){
+    		    	cachedEvents.write().mode("append").parquet(outputPath + "events.parquet");
+    		    }
+    		    else {
+    		    	cachedEvents.write().csv(outputPath + "events.csv");
+    		    }
+
+    	}   	
+    			);
+    	
+    }
+    else {
+    	//Mehr Contracts als Risikofaktoren - > Beim Aufruf werden Risikofaktoren mitgegeben. 
+    	riskfactorsFile.createOrReplaceTempView("riskfactors");
+    	List<Row> marketObject = sparkSession.sql("SELECT DISTINCT(MarketObjectCode) FROM riskfactors").collectAsList();
+    	
+    	marketObject.forEach(mO -> {
+    		Dataset<Row> riskfactorsFiltererd = riskfactorsFile.filter(riskfactorsFile.col("MarketObjectCode").equalTo(mO.getString(0)));
+    		Dataset<Row> contractsFiltererd = contractsFile.filter(contractsFile.col("MarketObjectCodeRateReset").equalTo(mO.getString(0)));
+    		
+    		 if(debug.equals("debug")){
+
+    			 System.out.println(riskfactorsFiltererd.first().getString(1)); // "riskSet",
+    			 System.out.println(	contractsFiltererd.javaRDD().first().getString(44)); // "portfolio",
+    			 System.out.println(	contractsFiltererd.javaRDD().first().getString(7)); // "id",
+    			 System.out.println(	    					Double.parseDouble(contractsFiltererd.javaRDD().first().getString(42))); // "accrued"
+    			 System.out.println(	Double.parseDouble(contractsFiltererd.javaRDD().first().getString(41))); 
+    	    		 }
+    		
+    	    JavaRDD<Row> events = contractsFiltererd.javaRDD().flatMap(new ContToEventFuncV3(riskfactorsFiltererd.collectAsList(), t0));
+    		Dataset<Row> cachedEvents = sparkSession.createDataFrame(events, eventsSchema);
+    		
+    	    if(debug.equals("debug")){
+    	    	System.out.println("cachedEvents Schema und show");
+    		    cachedEvents.printSchema();
+    		    cachedEvents.show();   
+    	    }
+    		
+    		 if(output.equals("parquet")){
+    		    	cachedEvents.write().mode("append").parquet(outputPath + "events.parquet");
+    		    }
+    		    else {
+    		    	cachedEvents.write().csv(outputPath + "events.csv");
+    		    }
+
+    	}   	
+    			);
+    }
+    	
+
+
     
-    JavaRDD<Row> events = filesJoin.javaRDD().flatMap(new ContToEventFunc(_t0));
+//    JavaRDD<Row> events = filesJoin.javaRDD().flatMap(new ContToEventFunc(_t0));
     
     
    	
@@ -180,39 +239,39 @@ public class MapConToEvExtFlatJobV2 {
 //	JavaRDD<Row> events = contractsAndRisk.values().flatMap(new ContToEvExtFlatFunc(_t0));
 	
     // Create DataFrame Schema
-    StructType eventsSchema = DataTypes
-            .createStructType(new StructField[] {
-            	DataTypes.createStructField("riskScenario", DataTypes.StringType, false),
-            	DataTypes.createStructField("portfolio", DataTypes.StringType, false),
-            	DataTypes.createStructField("id", DataTypes.StringType, false),
-                DataTypes.createStructField("date", DataTypes.StringType, false),
-                DataTypes.createStructField("type", DataTypes.StringType, false),
-                DataTypes.createStructField("currency", DataTypes.StringType, false),
-                DataTypes.createStructField("value", DataTypes.DoubleType, false),
-                DataTypes.createStructField("nominal", DataTypes.DoubleType, false),
-                DataTypes.createStructField("accrued", DataTypes.DoubleType, false), 
-                DataTypes.createStructField("discount", DataTypes.DoubleType, false),   //Diskontierung Zins
-                });
-    
-    // Data Frame erstellen
-	Dataset<Row> cachedEvents = sparkSession.createDataFrame(events, eventsSchema);
+//    StructType eventsSchema = DataTypes
+//            .createStructType(new StructField[] {
+//            	DataTypes.createStructField("riskScenario", DataTypes.StringType, false),
+//            	DataTypes.createStructField("portfolio", DataTypes.StringType, false),
+//            	DataTypes.createStructField("id", DataTypes.StringType, false),
+//                DataTypes.createStructField("date", DataTypes.StringType, false),
+//                DataTypes.createStructField("type", DataTypes.StringType, false),
+//                DataTypes.createStructField("currency", DataTypes.StringType, false),
+//                DataTypes.createStructField("value", DataTypes.DoubleType, false),
+//                DataTypes.createStructField("nominal", DataTypes.DoubleType, false),
+//                DataTypes.createStructField("accrued", DataTypes.DoubleType, false), 
+//                DataTypes.createStructField("discount", DataTypes.DoubleType, false),   //Diskontierung Zins
+//                });
+//    
+//    // Data Frame erstellen
+//	Dataset<Row> cachedEvents = sparkSession.createDataFrame(events, eventsSchema);
 
     //Debug Info
-    if(debug.equals("debug")){
-    	System.out.println("cachedEvents Schema und show");
-	    cachedEvents.printSchema();
-	    cachedEvents.show();   
-    }
+//    if(debug.equals("debug")){
+//    	System.out.println("cachedEvents Schema und show");
+//	    cachedEvents.printSchema();
+//	    cachedEvents.show();   
+//    }
     
     // DataFrames can be saved as Parquet files, maintaining the schema information.
     
-    if(output.equals("parquet")){
-    	cachedEvents.write().parquet(outputPath + "events.parquet");
-    }
-    else {
-    	cachedEvents.write().csv(outputPath + "events.csv");
-    }
-	
+//    if(output.equals("parquet")){
+//    	cachedEvents.write().parquet(outputPath + "events.parquet");
+//    }
+//    else {
+//    	cachedEvents.write().csv(outputPath + "events.csv");
+//    }
+//	
 	//Ende der Zeitmessung:
     long stop = System.currentTimeMillis();
  	

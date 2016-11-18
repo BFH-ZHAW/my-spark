@@ -52,7 +52,7 @@ public class ContToEventFunc implements FlatMapFunction<Row, Row> {
     		model.setStatusDate(terms.getString(4));
         model.setContractRole(terms.getString(5));
         model.setContractID(terms.getString(7));
-        model.setCycleAnchorDateOfInterestPayment(terms.getString(7));
+        model.setCycleAnchorDateOfInterestPayment(terms.getString(9));
         model.setCycleOfInterestPayment(terms.getString(10));
         model.setNominalInterestRate(Double.parseDouble(terms.getString(11)));
         model.setDayCountConvention(terms.getString(12));
@@ -64,24 +64,24 @@ public class ContToEventFunc implements FlatMapFunction<Row, Row> {
         model.setContractDealDate(terms.getString(17));
         model.setInitialExchangeDate(terms.getString(18));
         model.setMaturityDate(terms.getString(19));
-        model.setNotionalPrincipal(terms.getDouble(20));
+        model.setNotionalPrincipal(Double.parseDouble(terms.getString(20)));
         model.setPurchaseDate(terms.getString(21));
-              model.setPriceAtPurchaseDate(terms.getDouble(22));
+              model.setPriceAtPurchaseDate(Double.parseDouble(terms.getString(22)));
         model.setTerminationDate(terms.getString(23));
-              model.setPriceAtTerminationDate(terms.getDouble(24));
+              model.setPriceAtTerminationDate(Double.parseDouble(terms.getString(24)));
         model.setMarketObjectCodeOfScalingIndex(terms.getString(25));
-        model.setScalingIndexAtStatusDate(terms.getDouble(26));
+        model.setScalingIndexAtStatusDate(Double.parseDouble(terms.getString(26)));
         //model.setCycleAnchorDateOfScalingIndex(terms[28]);
         //model.setCycleOfScalingIndex(terms[29]);
         //model.setScalingEffect(terms[30]);
         model.setCycleAnchorDateOfRateReset(terms.getString(30));
         model.setCycleOfRateReset(terms.getString(31));
-        model.setRateSpread(terms.getDouble(22));
+        model.setRateSpread(Double.parseDouble(terms.getString(32)));
         model.setMarketObjectCodeRateReset(terms.getString(33));
         model.setCyclePointOfRateReset(terms.getString(34));
         model.setFixingDays(terms.getString(35));
-        model.setNextResetRate(terms.getDouble(36));
-        model.setRateMultiplier(terms.getDouble(37));
+        model.setNextResetRate(Double.parseDouble(terms.getString(36)));
+        model.setRateMultiplier(Double.parseDouble(terms.getString(37)));
         model.setRateTerm(terms.getString(38));
       // yield curve correction missing
         model.setPremiumDiscountAtIED(Double.parseDouble(terms.getString(39)));
@@ -112,19 +112,20 @@ public class ContToEventFunc implements FlatMapFunction<Row, Row> {
       if(!marketObjectCodeRateReset.equals("NULL")) {
        //rf = rfData.get(marketObjectCodeRateReset);
     	// rf = rfData;
-       if(rfData.getString(2).equals("TermStructure")) {
-         curve.of(t0, PeriodConverter.of(rfData.getString(3).split("!")), DoubleConverter.ofArray(rfData.getString(4),"!"));
-         rfCon.add(rfData.getString(0), curve);
-       } else if(rfData.getString(2).equals("ReferenceRate")){
-         refRate.of(DateConverter.of(rfData.getString(3).split("!")), DoubleConverter.ofDoubleArray(rfData.getString(4),"!"));
-         rfCon.add(rfData.getString(0), refRate);         
+       if(rfData.getString(47).equals("TermStructure")) {
+         curve.of(t0, PeriodConverter.of(rfData.getString(48).split("!")), DoubleConverter.ofArray(rfData.getString(49),"!"));
+         rfCon.add(rfData.getString(45), curve);
+       } else if(rfData.getString(47).equals("ReferenceRate")){
+         refRate.of(DateConverter.of(rfData.getString(48).split("!")), DoubleConverter.ofDoubleArray(rfData.getString(49),"!"));
+         rfCon.add(rfData.getString(45), refRate);         
        } 
-      }
+     }
       if(!marketObjectCodeScaling.equals("NULL")) {
        // rf = rfData.get(marketObjectCodeScaling);
     	//  rf = rfData;
-         refIndex.of(DateConverter.of(rfData.getString(3).split("!")), DoubleConverter.ofDoubleArray(rfData.getString(4),"!"));
-         rfCon.add(rfData.getString(0), refIndex);         
+         refIndex.of(DateConverter.of(rfData.getString(48).split("!")), DoubleConverter.ofDoubleArray(rfData.getString(49),"!"));
+         rfCon.add(rfData.getString(45), refIndex);
+    	 
     	}
     } catch(Exception e) {
       System.out.println(e.getClass().getName() + 
@@ -160,6 +161,7 @@ public class ContToEventFunc implements FlatMapFunction<Row, Row> {
                   t0);
     
           // init actus contract type
+
           PrincipalAtMaturity pamCT = new PrincipalAtMaturity();
           pamCT.setContractModel(pamModel);
           pamCT.setRiskFactors(rfCon);
@@ -172,11 +174,11 @@ public class ContToEventFunc implements FlatMapFunction<Row, Row> {
           //Für den Diskont Faktor
           InterestRateConnector<SpotRateCurve> inRate = (InterestRateConnector<SpotRateCurve>) rfCon.get(rfCon.getKeys()[0]);
           DayCounter dc = DayCounterConverter.of(DayCountConventions.ActualActualISDA);
-          String riskSet = r.getString(45); 
+          String riskSet = r.getString(46); 
           String portfolio = r.getString(44); 
 		  String id =	pamModel.getContractID(); 
-          Double creditSpread = r.getDouble(41);
-          Double idiosyncraticSpread = r.getDouble(42);
+          Double creditSpread = Double.parseDouble(r.getString(41));
+          Double idiosyncraticSpread = Double.parseDouble(r.getString(42));
           
           //Dynamische Grösse der Events:
           int size =events.size();
@@ -200,7 +202,20 @@ public class ContToEventFunc implements FlatMapFunction<Row, Row> {
 			              					Math.exp(-dc.yearFraction(t0, events.get(i).getEventDate())*(zins+creditSpread+idiosyncraticSpread))  // "defferedInterest",
 			              				));
             }
+            
+//            rowList.add(RowFactory.create(  r.getString(46), // "riskSet",
+//            		r.getString(44), // "portfolio",
+//            		r.getString(7), // "id",
+//            		pamModel.getMarketObjectCodeRateReset(), //	events.get(i).getEventDate().toString(), // "date"
+//  					"", //events.get(i).getEventType(), // "type"
+//  					"CHF", //events.get(i).getEventCurrency().toString(), // "currency"
+//  					Double.parseDouble("100"), //events.get(i).getEventValue(), // "value"
+//  					Double.parseDouble("200") , //states.getNominalValue(), // "nominal"
+//  					Double.parseDouble(r.getString(42)), // "accrued"
+//  					Double.parseDouble(r.getString(41)) // "defferedInterest",
+//  				));
 
   		  return rowList.iterator();
+          
         }
       } 
