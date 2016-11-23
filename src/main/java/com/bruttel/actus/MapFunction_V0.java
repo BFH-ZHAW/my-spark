@@ -119,89 +119,51 @@ public class MapFunction_V0 implements Function<String, Row> {
 	@Override
 	public Row call(String s) throws Exception {
 
-		// map input file to contract model
-		// (note, s is a single line of the input file)
-		PrincipalAtMaturityModel pamModel = mapTerms(s.split(";"));
-
-		// map risk factor data to actus connector
-		// RiskFactorConnector rfCon = mapRF(riskFactors.value(),
-		// pamModel.getMarketObjectCodeRateReset(),
-		// pamModel.getMarketObjectCodeOfScalingIndex(),
-		// t0.value());
-		RiskFactorConnector rfCon = mapRF(riskFactors, pamModel.getMarketObjectCodeRateReset(),
-				pamModel.getMarketObjectCodeOfScalingIndex(), t0);
-
-		// init actus contract type
-		PrincipalAtMaturity pamCT = new PrincipalAtMaturity();
-		pamCT.setContractModel(pamModel);
-		pamCT.setRiskFactors(rfCon);
-		pamCT.generateEvents(t0);
-		pamCT.processEvents(t0);
-		EventSeries events = pamCT.getProcessedEventSeries();
-
-		// Original:
-		// stucture results als array of Rows
-		int nEvents = events.size();
-		String[] id = new String[nEvents];
-		String[] dt = new String[nEvents];
-		String[] cur = new String[nEvents];
-		Double[] nv = new Double[nEvents];
-		Double[] na = new Double[nEvents];
-		StateSpace states;
-		for (int i = 0; i < nEvents; i++) {
-			dt[i] = events.get(i).getEventDate().toString();
-			cur[i] = events.get(i).getEventCurrency().toString();
-			states = events.get(i).getStates();
-			nv[i] = states.getNominalValue();
-			na[i] = states.getNominalAccrued();
-
-		}
-		Arrays.fill(id, 0, nEvents, pamModel.getContractID());
-
-		// Original:
-		Row results = RowFactory.create(id, dt, events.getEventTypes(), cur, events.getEventValues(), nv, na);
-		// Neu:
-		// int nEvents = events.size();
-		// String[] id = new String[nEvents];
-		// String[] dt = new String[nEvents];
-		// String[] cur = new String[nEvents];
-		// Double[] nv = new Double[nEvents];
-		// Double[] na = new Double[nEvents];
-		// StateSpace states;
-		// for(int i=0;i<nEvents;i++) {
-		// dt[i] = events.get(i).getEventDate().toString();
-		// cur[i] = events.get(i).getEventCurrency().toString();
-		// states = events.get(i).getStates();
-		// nv[i] = states.getNominalValue();
-		// na[i] = states.getNominalAccrued();
-		//
-		// }
-		// Arrays.fill(id,0,nEvents,pamModel.getContractID());
-		//
-
-		// Als Vorschlag hier die Arrays wieder "rückbauen"
-
-		// JavaRDD<Row> resultssflat = results.flatMap(new flatMapFunction<Row,
-		// Row>() {
-		// @Override
-		// public Row call(Row row) throws Exception {
-		//
-		// int size =Array.getLength((String[]) results.get(0));
-		//
-		// //Zwischenspeicher erstellen
-		// Object[] fields = new Object[size];
-		// for (int i=0; i < Array.getLength((String[]) row.get(0)); i++){
-		// fields[i] = row.get(0)[i] //"id",
-		// +";"+ row.get(1)[i] // "date"
-		// +";"+ row.get(2)[i] // "type"
-		// +";"+ row.get(3)[i] // "currency"
-		// +";"+ (String) row.get(4)[i] // "value"
-		// +";"+ (String) row.get(5)[i] // "nominal"
-		// +";"+ (String) row.get(6)[i]; // ("accrued"
-		// }
-		// }
-		// }
-
-		return results;
-	}
-}
+		  // map input file to contract model 
+        // (note, s is a single line of the input file)
+        PrincipalAtMaturityModel pamModel = mapTerms(s.split(";"));
+        
+        // map risk factor data to actus connector
+        RiskFactorConnector rfCon = mapRF(riskFactors, 
+                                          pamModel.getMarketObjectCodeRateReset(),
+                                          pamModel.getMarketObjectCodeOfScalingIndex(),
+                                          t0);
+  
+        // init actus contract type
+        PrincipalAtMaturity pamCT = new PrincipalAtMaturity();
+        pamCT.setContractModel(pamModel);
+        pamCT.setRiskFactors(rfCon);
+        pamCT.generateEvents(t0);
+        pamCT.processEvents(t0);
+        EventSeries events = pamCT.getProcessedEventSeries();
+        
+        // stucture results als array of Rows
+        int nEvents = events.size();
+        String[] id = new String[nEvents];
+        String[] dt = new String[nEvents];
+        String[] cur = new String[nEvents];
+        Double[] nv = new Double[nEvents];
+        Double[] na = new Double[nEvents];
+        StateSpace states;
+        for(int i=0;i<nEvents;i++) {
+          dt[i] = events.get(i).getEventDate().toString();
+          cur[i] = events.get(i).getEventCurrency().toString();
+          states = events.get(i).getStates();
+          nv[i] = states.getNominalValue();
+          na[i] = states.getNominalAccrued();
+         
+        }
+        Arrays.fill(id,0,nEvents,pamModel.getContractID());
+        
+        Row results = RowFactory.create(id,
+                                       dt,
+                                       events.getEventTypes(),
+                                       cur,
+                                       events.getEventValues(),
+                                       nv,
+                                       na);
+        
+        // return results
+        return results;
+      }
+    } 

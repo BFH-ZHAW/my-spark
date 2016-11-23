@@ -1,5 +1,5 @@
 /**
-Erweiterung von: MapContractsJob_V3_0 
+Erweiterung von: MapContractsJob_V4_0 -> Mit Broadcast
 Datenverarbeitung: Gefiltertes File -> FLATMAP 
 Output: Einzelne Events & Diskontfaktor, Portofolio und Risikoszenarien
 Input: Dataset
@@ -9,6 +9,8 @@ Input: Dataset
 package com.bruttel.actus;
 
 import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -21,7 +23,7 @@ import java.util.List;
 
 import javax.time.calendar.ZonedDateTime;
 
-public class MapContractsJob_V4_0 {
+public class MapContractsJob_V4_1 {
 
 	public static void main(String[] args) {
 		if (args.length != 10) {
@@ -48,10 +50,13 @@ public class MapContractsJob_V4_0 {
 		String riskfactorsPath = path.concat(riskfactors); // Kompletter Pfad zum Riskfactor File
 
 		// Klassenname wird wieder verwendet:
-		String className = "com.bruttel.actus.MapContractsJob_V4_0";
+		String className = "com.bruttel.actus.MapContractsJob_V4_1";
 
 		// Create Spark Session
 		SparkSession sparkSession = SparkSession.builder().appName(className).getOrCreate();
+
+		// SparkContext -> wird für Broadcast gebraucht
+		JavaSparkContext jsc = new JavaSparkContext(sparkSession.sparkContext());
 
 		// for time stopping
 		long start = System.currentTimeMillis();
@@ -68,9 +73,7 @@ public class MapContractsJob_V4_0 {
 		if (debug.equals("debug")) {
 			System.out.println(_t0);
 		}
-
-		// workaround:
-		final ZonedDateTime t0 = _t0;
+		Broadcast<ZonedDateTime> t0Broadcast = jsc.broadcast(_t0);
 
 		// import risk factor data as Dataframe and count
 		Dataset<Row> riskfactorsFile = sparkSession.read().option("header", true).option("sep", ";")
@@ -123,14 +126,13 @@ public class MapContractsJob_V4_0 {
 			// Je Währung wird ein eigener Druchgang (Parallel) gemacht.
 			marketObject.parallelStream().forEach(mO -> {
 				// Daten Filtern
-				Dataset<Row> riskfactorsFiltererd = riskfactorsFile
-						.filter(riskfactorsFile.col("MarketObjectCode").equalTo(mO.getString(0)));
-				Dataset<Row> contractsFiltererd = contractsFile
-						.filter(contractsFile.col("MarketObjectCodeRateReset").equalTo(mO.getString(0)));
+				Dataset<Row> riskfactorsFiltererd = riskfactorsFile.filter(riskfactorsFile.col("MarketObjectCode").equalTo(mO.getString(0)));
+				Dataset<Row> contractsFiltererd = contractsFile.filter(contractsFile.col("MarketObjectCodeRateReset").equalTo(mO.getString(0)));
+				Broadcast<Dataset<Row>> contractsFiltererdBraodcast = jsc.broadcast(contractsFiltererd);
 
 				// Flatmap und Dataframe
 				JavaRDD<Row> events = riskfactorsFiltererd.javaRDD()
-						.flatMap(new MapFunction_V4_contractsfile(contractsFiltererd.collectAsList(), t0));
+						.flatMap(new MapFunction_V4_contractsfile(contractsFiltererdBraodcast.value().collectAsList(), t0Broadcast.value()));
 				Dataset<Row> cachedEvents = sparkSession.createDataFrame(events, eventsSchema);
 
 				// Debug Info
@@ -161,14 +163,13 @@ public class MapContractsJob_V4_0 {
 			// Für jede Währung
 			marketObject.forEach(mO -> {
 				// Daten Filtern
-				Dataset<Row> riskfactorsFiltererd = riskfactorsFile
-						.filter(riskfactorsFile.col("MarketObjectCode").equalTo(mO.getString(0)));
-				Dataset<Row> contractsFiltererd = contractsFile
-						.filter(contractsFile.col("MarketObjectCodeRateReset").equalTo(mO.getString(0)));
+				Dataset<Row> riskfactorsFiltererd = riskfactorsFile.filter(riskfactorsFile.col("MarketObjectCode").equalTo(mO.getString(0)));
+				Dataset<Row> contractsFiltererd = contractsFile.filter(contractsFile.col("MarketObjectCodeRateReset").equalTo(mO.getString(0)));
+				Broadcast<Dataset<Row>> riskfactorsFiltererdBraodcast = jsc.broadcast(riskfactorsFiltererd);
 
 				// Flatmap und Dataframe
 				JavaRDD<Row> events = contractsFiltererd.javaRDD()
-						.flatMap(new MapFunction_V4_riskfile(riskfactorsFiltererd.collectAsList(), t0));
+						.flatMap(new MapFunction_V4_riskfile(riskfactorsFiltererdBraodcast.value().collectAsList(), t0Broadcast.value()));
 				Dataset<Row> cachedEvents = sparkSession.createDataFrame(events, eventsSchema);
 
 				// Debug Info
@@ -192,6 +193,7 @@ public class MapContractsJob_V4_0 {
 		long stop = System.currentTimeMillis();
 
 		// stop spark Session
+		jsc.close();
 		sparkSession.stop();
 
 		// Log Schreiben

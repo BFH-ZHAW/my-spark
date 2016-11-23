@@ -1,7 +1,7 @@
 /**
-Initiale Version (mit Java 1.8 und Spark 2.0.0)
-Datenverarbeitung: MAP
-Output: Arrays
+Erweiterung von: MapContractsJob_V1_0 
+Datenverarbeitung: JOIN -> FLATMAP 
+Output: Einzelne Events & Diskontfaktor, Portofolio und Risikoszenarien
 Input: RDD's
 @author Daniel Bruttel
 @version 1.0
@@ -23,11 +23,12 @@ import scala.Tuple2;
 
 import java.util.Arrays;
 
-public class MapContractsJob_V0_0 {
+public class MapContractsJob_V2_0 {
 
 	public static void main(String[] args) {
 		if (args.length != 10) {
-			System.err.println("Usage: path contractFile riskfactorsFile timespecsFile logFile output debug ram run knoten");
+			System.err.println(
+					"Usage: path contractFile riskfactorsFile timespecsFile logFile output debug ram run knoten");
 			System.exit(0);
 		}
 		// Input Parameter:
@@ -35,7 +36,7 @@ public class MapContractsJob_V0_0 {
 		String contracts = args[1]; // contracts_100000.csv
 		String riskfactors = args[2]; // riskfactors_200.csv
 		String timespecs = args[3]; // timespecs_input.csv
-		String logFile = args[4]; // logX.csv (Name des Logfiles -> wird fürs Log Gebraucht)
+		String logFile = args[4]; // logX.csv (Name des Logfiles -> wird fürsLog Gebraucht)
 		String output = args[5]; // parquet oder CSV
 		String debug = args[6]; // write debug to debug or anything else to not debug
 		String ram = args[7]; // 12GB (Ram Pro Executor -> wird fürs LogGebraucht)
@@ -49,7 +50,7 @@ public class MapContractsJob_V0_0 {
 		String riskfactorsPath = path.concat(riskfactors); // Kompletter Pfad zum Riskfactor File
 
 		// Klassenname wird wieder verwendet:
-		String className = "com.bruttel.actus.MapContractsJob_V0_0";
+		String className = "com.bruttel.actus.MapContractsJob_V2_0";
 
 		// Create Spark Session
 		SparkSession sparkSession = SparkSession.builder().appName(className).getOrCreate();
@@ -58,12 +59,12 @@ public class MapContractsJob_V0_0 {
 		long start = System.currentTimeMillis();
 
 		// import and broadcast analysis date
-		JavaRDD<String> timeSpecs = sparkSession.read().textFile(timespecsPath).javaRDD(); // analysis timespecification
+		JavaRDD<String> timeSpecs = sparkSession.read().textFile(timespecsPath).javaRDD(); // analysis time specification
 		JavaRDD<String> timeVector = timeSpecs.flatMap(line -> Arrays.asList(line.split(";")).iterator());
 		ZonedDateTime _t0 = null;
 		try {
 			_t0 = DateConverter.of(timeVector.first());
-			// _t0 = DateConverter.of(timeVector[0]);
+
 		} catch (Exception e) {
 			System.out.println(e.getClass().getName() + " when converting the analysis date to ZonedDateTime!");
 		}
@@ -73,52 +74,50 @@ public class MapContractsJob_V0_0 {
 		}
 
 		// import risk factor data, map to connector
-		JavaRDD<String> riskFactor = sparkSession.read().textFile(riskfactorsPath).javaRDD(); // contractdata
+		JavaRDD<String> riskFactor = sparkSession.read().textFile(riskfactorsPath).javaRDD(); // risiko data
 		JavaPairRDD<String, String[]> riskFactorRDD = riskFactor
 				.mapToPair(temp -> new Tuple2<String, String[]>(temp.split(";")[0], temp.split(";")));
+		// Check if Broadcast is useful:
 
-		// Debug Info
-		if (debug.equals("debug")) {
-			System.out.println(riskFactorRDD.first());
-			System.out.println(riskfactorsPath);
-		}
+		// import contracts data, map to connector
+		JavaRDD<String> contractFile = sparkSession.read().textFile(contractsPath).javaRDD(); // contract data
+		JavaPairRDD<String, String[]> contractFileRDD = contractFile
+				.mapToPair(temp -> new Tuple2<String, String[]>(temp.split(";")[40], temp.split(";")));
+		// Check if Broadcast is useful:
 
-		// import and map contract data to contract event results
-		JavaRDD<String> contractFile = sparkSession.read().textFile(contractsPath).javaRDD(); // contractdata
-		JavaRDD<Row> events = contractFile.map(new MapFunction_V0(_t0, riskFactorRDD.collectAsMap()));
-		
-		// Debug Info
-				if (debug.equals("debug")) {
-					System.out.println(contractFile.first());
-					System.out.println(events.first());
-				}
+		JavaPairRDD<String, Tuple2<String[], String[]>> contractsAndRisk = contractFileRDD.join(riskFactorRDD);
+		JavaRDD<Row> events = contractsAndRisk.values().flatMap(new MapFunction_V2(_t0));
 
-		// convert to DataFrame
-		StructType eventsSchema = DataTypes.createStructType(new StructField[] {
-				DataTypes.createStructField("id", DataTypes.createArrayType(DataTypes.StringType), false),
-				DataTypes.createStructField("date", DataTypes.createArrayType(DataTypes.StringType), false),
-				DataTypes.createStructField("type", DataTypes.createArrayType(DataTypes.StringType), false),
-				DataTypes.createStructField("currency", DataTypes.createArrayType(DataTypes.StringType), false),
-				DataTypes.createStructField("value", DataTypes.createArrayType(DataTypes.DoubleType), false),
-				DataTypes.createStructField("nominal", DataTypes.createArrayType(DataTypes.DoubleType), false),
-				DataTypes.createStructField("accrued", DataTypes.createArrayType(DataTypes.DoubleType), false) });
+		// Create DataFrame Schema
+		StructType eventsSchema = DataTypes.createStructType(
+				new StructField[] { DataTypes.createStructField("riskScenario", DataTypes.StringType, false),
+						DataTypes.createStructField("portfolio", DataTypes.StringType, false),
+						DataTypes.createStructField("id", DataTypes.StringType, false),
+						DataTypes.createStructField("date", DataTypes.StringType, false),
+						DataTypes.createStructField("type", DataTypes.StringType, false),
+						DataTypes.createStructField("currency", DataTypes.StringType, false),
+						DataTypes.createStructField("value", DataTypes.DoubleType, false),
+						DataTypes.createStructField("nominal", DataTypes.DoubleType, false),
+						DataTypes.createStructField("accrued", DataTypes.DoubleType, false),
+						DataTypes.createStructField("discount", DataTypes.DoubleType, false), 
+				});
 
 		// Data Frame erstellen
-		Dataset<Row> cachedEvents = sparkSession.createDataFrame(events, eventsSchema).cache();
+		Dataset<Row> cachedEvents = sparkSession.createDataFrame(events, eventsSchema);
 
 		// Debug Info
 		if (debug.equals("debug")) {
+			System.out.println("cachedEvents Schema und show");
 			cachedEvents.printSchema();
 			cachedEvents.show();
 		}
 
-		//Output generieren:
-	    if(output.equals("parquet")){
-	    	cachedEvents.write().parquet(outputPath + "events.parquet");
-	    }
-	    else {
-	    	cachedEvents.write().csv(outputPath + "events.csv");
-	    }
+		// DataFrames can be saved as Parquet files, maintaining the schema information.
+		if (output.equals("parquet")) {
+			cachedEvents.write().parquet(outputPath + "events.parquet");
+		} else {
+			cachedEvents.write().csv(outputPath + "events.csv");
+		}
 
 		// Ende der Zeitmessung:
 		long stop = System.currentTimeMillis();
@@ -130,5 +129,4 @@ public class MapContractsJob_V0_0 {
 		new WriteLog(logFile, className, output, ram, contracts, riskfactors, knoten, run, start, stop);
 
 	}
-
 }

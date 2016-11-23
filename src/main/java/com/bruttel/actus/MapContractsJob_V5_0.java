@@ -1,6 +1,6 @@
 /**
-Erweiterung von: MapContractsJob_V3_0 
-Datenverarbeitung: Gefiltertes File -> FLATMAP 
+Erweiterung von: MapContractsJob_V4_0 
+Datenverarbeitung: Ganzes File -> FLATMAP 
 Output: Einzelne Events & Diskontfaktor, Portofolio und Risikoszenarien
 Input: Dataset
 @author Daniel Bruttel
@@ -17,11 +17,9 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.StructField;
 import org.actus.conversion.DateConverter;
 
-import java.util.List;
-
 import javax.time.calendar.ZonedDateTime;
 
-public class MapContractsJob_V4_0 {
+public class MapContractsJob_V5_0 {
 
 	public static void main(String[] args) {
 		if (args.length != 10) {
@@ -48,7 +46,7 @@ public class MapContractsJob_V4_0 {
 		String riskfactorsPath = path.concat(riskfactors); // Kompletter Pfad zum Riskfactor File
 
 		// Klassenname wird wieder verwendet:
-		String className = "com.bruttel.actus.MapContractsJob_V4_0";
+		String className = "com.bruttel.actus.MapContractsJob_V5_0";
 
 		// Create Spark Session
 		SparkSession sparkSession = SparkSession.builder().appName(className).getOrCreate();
@@ -69,34 +67,29 @@ public class MapContractsJob_V4_0 {
 			System.out.println(_t0);
 		}
 
-		// workaround:
-		final ZonedDateTime t0 = _t0;
-
 		// import risk factor data as Dataframe and count
 		Dataset<Row> riskfactorsFile = sparkSession.read().option("header", true).option("sep", ";")
 				.csv(riskfactorsPath);
-		long riskfactorsAmount = riskfactorsFile.count() / 4;
 
 		// Debug Info
 		if (debug.equals("debug")) {
-			System.out.println(
-					"riskfactorsFile printSchema() und show() von Total:" + riskfactorsAmount + " Risikoszenarien");
+			System.out.println("riskfactorsFile printSchema() und show() von Total:" + riskfactorsFile.count() / 4
+					+ " Risikoszenarien");
 			riskfactorsFile.printSchema();
 			riskfactorsFile.show();
 		}
 
 		// import contract data as Dataframe and count
 		Dataset<Row> contractsFile = sparkSession.read().option("header", true).option("sep", ";").csv(contractsPath);
-		long contractsAmount = contractsFile.count();
-
 		// Debug Info
 		if (debug.equals("debug")) {
-			System.out.println("contractsFile printSchema() und show() von Total:" + contractsAmount + " Contracts");
+			System.out.println("contractsFile printSchema() und show() von Total:");// +contractsAmount+"
+																					// Contracts");
 			contractsFile.printSchema();
 			contractsFile.show();
 		}
 
-		// Schema
+		// Hier wird das Zielformat definiert
 		StructType eventsSchema = DataTypes.createStructType(
 				new StructField[] { DataTypes.createStructField("riskScenario", DataTypes.StringType, false),
 						DataTypes.createStructField("portfolio", DataTypes.StringType, false),
@@ -107,85 +100,24 @@ public class MapContractsJob_V4_0 {
 						DataTypes.createStructField("value", DataTypes.DoubleType, false),
 						DataTypes.createStructField("nominal", DataTypes.DoubleType, false),
 						DataTypes.createStructField("accrued", DataTypes.DoubleType, false),
-						DataTypes.createStructField("discount", DataTypes.DoubleType, false), 
-				});
+						DataTypes.createStructField("discont", DataTypes.DoubleType, false), });
 
-		// Abhängig der Grösse der beiden files wird das kleinere mitgegeben. Da
-		// Risikofaktoren performanter sind müssen Sie 10 mal grösser sein.
-		// Mehr Risikofaktoren als Contracts -> Beim Aufruf werden Contracts
-		// mitgegeben.
-		if (riskfactorsAmount > contractsAmount * 10) {
-			// Eine Liste der Währungen wird für die Sortierung generiert.
-			contractsFile.createOrReplaceTempView("contracts");
-			List<Row> marketObject = sparkSession.sql("SELECT DISTINCT(MarketObjectCodeRateReset) FROM contracts")
-					.collectAsList();
-
-			// Je Währung wird ein eigener Druchgang (Parallel) gemacht.
-			marketObject.parallelStream().forEach(mO -> {
-				// Daten Filtern
-				Dataset<Row> riskfactorsFiltererd = riskfactorsFile
-						.filter(riskfactorsFile.col("MarketObjectCode").equalTo(mO.getString(0)));
-				Dataset<Row> contractsFiltererd = contractsFile
-						.filter(contractsFile.col("MarketObjectCodeRateReset").equalTo(mO.getString(0)));
-
-				// Flatmap und Dataframe
-				JavaRDD<Row> events = riskfactorsFiltererd.javaRDD()
-						.flatMap(new MapFunction_V4_contractsfile(contractsFiltererd.collectAsList(), t0));
-				Dataset<Row> cachedEvents = sparkSession.createDataFrame(events, eventsSchema);
-
-				// Debug Info
-				if (debug.equals("debug")) {
-					System.out.println("cachedEvents Schema und show");
-					cachedEvents.printSchema();
-					cachedEvents.show();
-				}
-
-				// Output erstellen.
-				if (output.equals("parquet")) {
-					cachedEvents.write().mode("append").parquet(outputPath + "events.parquet");
-				} else {
-					cachedEvents.write().csv(outputPath + "events.csv");
-				}
-
-			});
-
+		// Durch Flatmap werden die Contracts allen Risikofaktoren zugewiesen.
+		JavaRDD<Row> events = contractsFile.javaRDD()
+				.flatMap(new MapFunction_V5(riskfactorsFile.collectAsList(), _t0));
+		// Das Dataframe wird erstellt
+		Dataset<Row> cachedEvents = sparkSession.createDataFrame(events, eventsSchema);
+		// Debug Information
+		if (debug.equals("debug")) {
+			System.out.println("cachedEvents Schema und show");
+			cachedEvents.printSchema();
+			cachedEvents.show();
 		}
-		// Mehr Contracts als Risikofaktoren - > Beim Aufruf werden
-		// Risikofaktoren mitgegeben.
-		else {
-			// Eine Liste der Währungen wird für die Sortierung generiert.
-			riskfactorsFile.createOrReplaceTempView("riskfactors");
-			List<Row> marketObject = sparkSession.sql("SELECT DISTINCT(MarketObjectCode) FROM riskfactors")
-					.collectAsList();
-
-			// Für jede Währung
-			marketObject.forEach(mO -> {
-				// Daten Filtern
-				Dataset<Row> riskfactorsFiltererd = riskfactorsFile
-						.filter(riskfactorsFile.col("MarketObjectCode").equalTo(mO.getString(0)));
-				Dataset<Row> contractsFiltererd = contractsFile
-						.filter(contractsFile.col("MarketObjectCodeRateReset").equalTo(mO.getString(0)));
-
-				// Flatmap und Dataframe
-				JavaRDD<Row> events = contractsFiltererd.javaRDD()
-						.flatMap(new MapFunction_V4_riskfile(riskfactorsFiltererd.collectAsList(), t0));
-				Dataset<Row> cachedEvents = sparkSession.createDataFrame(events, eventsSchema);
-
-				// Debug Info
-				if (debug.equals("debug")) {
-					System.out.println("cachedEvents Schema und show");
-					cachedEvents.printSchema();
-					cachedEvents.show();
-				}
-
-				// Output erstellen
-				if (output.equals("parquet")) {
-					cachedEvents.write().mode("append").parquet(outputPath + "events.parquet");
-				} else {
-					cachedEvents.write().csv(outputPath + "events.csv");
-				}
-
-			});
+		// Output generieren:
+		if (output.equals("parquet")) {
+			cachedEvents.write().parquet(outputPath + "events.parquet");
+		} else {
+			cachedEvents.write().csv(outputPath + "events.csv");
 		}
 
 		// Ende der Zeitmessung:
