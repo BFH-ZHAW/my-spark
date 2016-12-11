@@ -1,15 +1,14 @@
 /**
-Erweiterung von: MapContractsJob_V1_0 
-Datenverarbeitung: JOIN -> FLATMAP 
+Erweiterung von: MapContractsJob_V5_0 
+Datenverarbeitung: Streaming File -> FLATMAP 
 Output: Einzelne Events & Diskontfaktor, Portofolio und Risikoszenarien
-Input: RDD's
+Input: Dataset
 @author Daniel Bruttel
 @version 1.0
 */
 package com.bruttel.actus;
 
 import org.apache.spark.api.java.JavaRDD;
-import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -20,11 +19,8 @@ import org.apache.spark.sql.types.StructField;
 import org.actus.conversion.DateConverter;
 
 import javax.time.calendar.ZonedDateTime;
-import scala.Tuple2;
 
-import java.util.Arrays;
-
-public class MapContractsJob_V2_0 {
+public class MapContractsJob_V6_0 {
 
 	public static void main(String[] args) {
 		if (args.length != 10) {
@@ -37,7 +33,7 @@ public class MapContractsJob_V2_0 {
 		String contracts = args[1]; // contracts_100000.csv
 		String riskfactors = args[2]; // riskfactors_200.csv
 		String timespecs = args[3]; // timespecs_input.csv
-		String logFile = args[4]; // logX.csv (Name des Logfiles -> wird fürs Log Gebraucht)
+		String logFile = args[4]; // logX.csv (Name des Logfiles -> wird fürsLog Gebraucht)
 		String output = args[5]; // parquet oder CSV
 		String debug = args[6]; // write debug to debug or anything else to not debug
 		String ram = args[7]; // 12GB (Ram Pro Executor -> wird fürs LogGebraucht)
@@ -51,7 +47,7 @@ public class MapContractsJob_V2_0 {
 		String riskfactorsPath = path.concat(riskfactors); // Kompletter Pfad zum Riskfactor File
 
 		// Klassenname wird wieder verwendet:
-		String className = "com.bruttel.actus.MapContractsJob_V2_0";
+		String className = "com.bruttel.actus.MapContractsJob_V5_0";
 
 		// Create Spark Session
 		SparkSession sparkSession = SparkSession.builder().appName(className).getOrCreate();
@@ -59,13 +55,11 @@ public class MapContractsJob_V2_0 {
 		// for time stopping
 		long start = System.currentTimeMillis();
 
-		// import and broadcast analysis date
-		JavaRDD<String> timeSpecs = sparkSession.read().textFile(timespecsPath).javaRDD(); 
-		JavaRDD<String> timeVector = timeSpecs.flatMap(line -> Arrays.asList(line.split(";")).iterator());
+		// import and broadcast analysis date als Dataframe
+		Dataset<Row> timespecsFile = sparkSession.read().option("header", false).csv(timespecsPath);
 		ZonedDateTime _t0 = null;
 		try {
-			_t0 = DateConverter.of(timeVector.first());
-
+			_t0 = DateConverter.of(timespecsFile.first().getString(0));
 		} catch (Exception e) {
 			System.out.println(e.getClass().getName() + " when converting the analysis date to ZonedDateTime!");
 		}
@@ -74,26 +68,30 @@ public class MapContractsJob_V2_0 {
 			System.out.println(_t0);
 		}
 
-		// import risk factor data, map to connector
-		JavaRDD<String> riskFactor = sparkSession.read().textFile(riskfactorsPath).javaRDD(); 
-		JavaPairRDD<String, String[]> riskFactorRDD = riskFactor
-				.mapToPair(temp -> new Tuple2<String, String[]>(temp.split(";")[0], temp.split(";")));
+		// import risk factor data as Dataframe and count
+		Dataset<Row> riskfactorsFile = sparkSession.read().option("header", true).option("sep", ";")
+				.csv(riskfactorsPath);
 
 		// Debug Info
 		if (debug.equals("debug")) {
-			System.out.println(riskFactorRDD.first());
+			System.out.println("riskfactorsFile printSchema() und show() von Total:" + riskfactorsFile.count() / 4
+					+ " Risikoszenarien");
+			riskfactorsFile.printSchema();
+			riskfactorsFile.show();
 		}
 
-		// import contracts data, map to connector
-		JavaRDD<String> contractFile = sparkSession.read().textFile(contractsPath).javaRDD(); 
-		JavaPairRDD<String, String[]> contractFileRDD = contractFile
-				.mapToPair(temp -> new Tuple2<String, String[]>(temp.split(";")[40], temp.split(";")));
-		// Check if Broadcast is useful:
+		// import contract data as Dataframe as Stream
+		Dataset<Row> contractsFile = sparkSession.read().option("header", true).option("sep", ";").csv(contractsPath);
+		//Dataset<Row> contractsFile = sparkSession.readStream().option("header", true).option("sep", ";").csv(contractsPath);
+		// Debug Info
+		if (debug.equals("debug")) {
+			System.out.println("contractsFile printSchema() und show() von Total:");// +contractsAmount+"
+																					// Contracts");
+			contractsFile.printSchema();
+			contractsFile.show();
+		}
 
-		JavaPairRDD<String, Tuple2<String[], String[]>> contractsAndRisk = contractFileRDD.join(riskFactorRDD);
-		JavaRDD<Row> events = contractsAndRisk.values().flatMap(new MapFunction_V2(_t0));
-
-		// Create DataFrame Schema
+		// Hier wird das Zielformat definiert
 		StructType eventsSchema = DataTypes.createStructType(
 				new StructField[] { DataTypes.createStructField("riskScenario", DataTypes.StringType, false),
 						DataTypes.createStructField("portfolio", DataTypes.StringType, false),
@@ -104,22 +102,22 @@ public class MapContractsJob_V2_0 {
 						DataTypes.createStructField("value", DataTypes.DoubleType, false),
 						DataTypes.createStructField("nominal", DataTypes.DoubleType, false),
 						DataTypes.createStructField("accrued", DataTypes.DoubleType, false),
-						DataTypes.createStructField("discount", DataTypes.DoubleType, false), 
-				});
+						DataTypes.createStructField("discount", DataTypes.DoubleType, false), });
 
-		// Data Frame erstellen
+		// Durch Flatmap werden die Contracts allen Risikofaktoren zugewiesen.
+		JavaRDD<Row> events = contractsFile.javaRDD()
+				.flatMap(new MapFunction_V5(riskfactorsFile.collectAsList(), _t0));
+		// Das Dataframe wird erstellt
 		Dataset<Row> cachedEvents = sparkSession.createDataFrame(events, eventsSchema);
-
-		// Debug Info
+		// Debug Information
 		if (debug.equals("debug")) {
 			System.out.println("cachedEvents Schema und show");
 			cachedEvents.printSchema();
 			cachedEvents.show();
 		}
-
-		// DataFrames can be saved as Parquet files, maintaining the schema information.
+		// Output generieren:
 		if (output.equals("parquet")) {
-			cachedEvents.write().mode(SaveMode.Overwrite).parquet(outputPath + "events.parquet");
+			cachedEvents.writeStream().format("parquet").start(outputPath + "events.parquet");
 		} else {
 			cachedEvents.write().mode(SaveMode.Overwrite).csv(outputPath + "events.csv");
 		}

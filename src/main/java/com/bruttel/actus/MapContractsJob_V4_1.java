@@ -14,6 +14,7 @@ import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.StructField;
@@ -181,9 +182,19 @@ public class MapContractsJob_V4_1 {
 
 				// Output erstellen
 				if (output.equals("parquet")) {
-					cachedEvents.write().mode("append").parquet(outputPath + "events.parquet");
+					if(mO.equals(marketObject.get(0))){
+						cachedEvents.write().mode(SaveMode.Overwrite).parquet(outputPath + "events.parquet");
+					}
+					else {
+						cachedEvents.write().mode(SaveMode.Append).parquet(outputPath + "events.parquet");
+					}
 				} else {
-					cachedEvents.write().csv(outputPath + "events.csv");
+					if(mO.equals(marketObject.get(0))){
+						cachedEvents.write().mode(SaveMode.Overwrite).csv(outputPath + "events.csv");
+					}
+					else {
+						cachedEvents.write().mode(SaveMode.Append).csv(outputPath + "events.csv");	
+					}
 				}
 
 			});

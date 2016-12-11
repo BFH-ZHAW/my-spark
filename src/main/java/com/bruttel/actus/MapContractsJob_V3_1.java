@@ -12,6 +12,7 @@ import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.StructField;
@@ -46,7 +47,7 @@ public class MapContractsJob_V3_1 {
 		String riskfactorsPath = path.concat(riskfactors); // Kompletter Pfad zum Riskfactor File
 
 		// Klassenname wird wieder verwendet:
-		String className = "com.bruttel.actus.MapContractsJob_V3_0";
+		String className = "com.bruttel.actus.MapContractsJob_V3_1";
  
 		//Create Spark Session
 	    SparkSession sparkSession = SparkSession
@@ -133,10 +134,10 @@ public class MapContractsJob_V3_1 {
 	    // DataFrames can be saved as Parquet files, maintaining the schema information.
 	    
 	    if(output.equals("parquet")){
-	    	cachedEvents.write().parquet(outputPath + "events.parquet");
+	    	cachedEvents.write().mode(SaveMode.Overwrite).parquet(outputPath + "events.parquet");
 	    }
 	    else {
-	    	cachedEvents.write().csv(outputPath + "events.csv");
+	    	cachedEvents.write().mode(SaveMode.Overwrite).csv(outputPath + "events.csv");
 	    }
 		
 		//Ende der Zeitmessung:

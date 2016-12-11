@@ -13,6 +13,7 @@ import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.StructField;
@@ -114,10 +115,10 @@ public class MapContractsJob_V0_0 {
 
 		//Output generieren:
 	    if(output.equals("parquet")){
-	    	cachedEvents.write().parquet(outputPath + "events.parquet");
+	    	cachedEvents.write().mode(SaveMode.Overwrite).parquet(outputPath + "events.parquet");
 	    }
 	    else {
-	    	cachedEvents.write().csv(outputPath + "events.csv");
+	    	cachedEvents.write().mode(SaveMode.Overwrite).csv(outputPath + "events.csv");
 	    }
 
 		// Ende der Zeitmessung:

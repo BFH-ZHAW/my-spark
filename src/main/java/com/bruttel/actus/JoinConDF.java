@@ -16,6 +16,7 @@ import org.actus.conversion.DateConverter;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SaveMode;
 
 public class JoinConDF {
 
@@ -30,26 +31,18 @@ public class JoinConDF {
 		String contracts = args[1]; // contracts_100000.csv
 		String riskfactors = args[2]; // riskfactors_200.csv
 		String timespecs = args[3]; // timespecs_input.csv
-		String logFile = args[4]; // logX.csv (Name des Logfiles -> wird fürsLog
-									// Gebraucht)
+		String logFile = args[4]; // logX.csv (Name des Logfiles -> wird fürsLog Gebraucht)
 		String output = args[5]; // parquet oder CSV
-		String debug = args[6]; // write debug to debug or anything else to not
-								// debug
-		String ram = args[7]; // 12GB (Ram Pro Executor -> wird fürs
-								// LogGebraucht)
+		String debug = args[6]; // write debug to debug or anything else to not debug
+		String ram = args[7]; // 12GB (Ram Pro Executor -> wird fürs LogGebraucht)
 		String run = args[8]; // 1-10 (Durchgang -> wird fürs Log gebraucht)
-		String knoten = args[9]; // 1-8 (Anzahl aktive Knoten -> wird fürs Log
-									// gebraucht)
+		String knoten = args[9]; // 1-8 (Anzahl aktive Knoten -> wird fürs Log gebraucht)
 
 		// Pfade
 		String timespecsPath = path.concat(timespecs);
-		String outputPath = path.concat("output/"); // Kompletter Pfad zum
-													// Output Path
-		String contractsPath = path.concat(contracts); // Kompletter Pfad zum
-														// Contractsfile
-		String riskfactorsPath = path.concat(riskfactors); // Kompletter Pfad
-															// zum Riskfactor
-															// File
+		String outputPath = path.concat("output/"); // Kompletter Pfad zum Output Path
+		String contractsPath = path.concat(contracts); // Kompletter Pfad zum Contractsfile
+		String riskfactorsPath = path.concat(riskfactors); // Kompletter Pfad zum Riskfactor File
 
 		// Klassenname wird wieder verwendet:
 		String className = "com.bruttel.actus.JoinConDF";
@@ -86,9 +79,9 @@ public class JoinConDF {
 		// DataFrames can be saved as Parquet files, maintaining the schema
 		// information.
 		if (output.equals("parquet")) {
-			filesJoin.write().parquet(outputPath + "joinDF.parquet");
+			filesJoin.write().mode(SaveMode.Overwrite).parquet(outputPath + "joinDF.parquet");
 		} else {
-			filesJoin.write().csv(outputPath + "joinDF.csv");
+			filesJoin.write().mode(SaveMode.Overwrite).csv(outputPath + "joinDF.csv");
 		}
 
 		// Log Schreiben

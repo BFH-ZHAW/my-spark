@@ -14,6 +14,7 @@ import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.StructField;
@@ -107,7 +108,7 @@ public class MapContractsJob_V5_1 {
 						DataTypes.createStructField("value", DataTypes.DoubleType, false),
 						DataTypes.createStructField("nominal", DataTypes.DoubleType, false),
 						DataTypes.createStructField("accrued", DataTypes.DoubleType, false),
-						DataTypes.createStructField("discont", DataTypes.DoubleType, false), });
+						DataTypes.createStructField("discount", DataTypes.DoubleType, false), });
 
 		// Durch Flatmap werden die Contracts allen Risikofaktoren zugewiesen.
 		JavaRDD<Row> events = contractsFile.javaRDD()
@@ -122,9 +123,9 @@ public class MapContractsJob_V5_1 {
 		}
 		// Output generieren:
 		if (output.equals("parquet")) {
-			cachedEvents.write().parquet(outputPath + "events.parquet");
+			cachedEvents.write().mode(SaveMode.Overwrite).parquet(outputPath + "events.parquet");
 		} else {
-			cachedEvents.write().csv(outputPath + "events.csv");
+			cachedEvents.write().mode(SaveMode.Overwrite).csv(outputPath + "events.csv");
 		}
 
 		// Ende der Zeitmessung:
