@@ -151,8 +151,8 @@ public class MapFunction_V0 implements Function<String, Row> {
           states = events.get(i).getStates();
           nv[i] = states.getNominalValue();
           na[i] = states.getNominalAccrued();
-         
         }
+        
         Arrays.fill(id,0,nEvents,pamModel.getContractID());
         
         Row results = RowFactory.create(id,

@@ -1,10 +1,10 @@
 /**
-Berechnet den Nominal Value Aller Events
-Datenverarbeitung: SQL
-Output: Liste
-Input: parquet
-@author Daniel Bruttel
-@version 1.0
+ * Berechnet den Nominal Value Aller Events
+ * Datenverarbeitung: SQL
+ * Output: Liste
+ * Input: parquet
+ * @author Daniel Bruttel
+ * @version 1.0
 */
 package com.bruttel.actus;
 

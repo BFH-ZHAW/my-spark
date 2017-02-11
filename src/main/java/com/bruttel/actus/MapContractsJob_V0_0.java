@@ -59,7 +59,7 @@ public class MapContractsJob_V0_0 {
 		long start = System.currentTimeMillis();
 
 		// import and broadcast analysis date
-		JavaRDD<String> timeSpecs = sparkSession.read().textFile(timespecsPath).javaRDD(); // analysis timespecification
+		JavaRDD<String> timeSpecs = sparkSession.read().textFile(timespecsPath).javaRDD(); 
 		JavaRDD<String> timeVector = timeSpecs.flatMap(line -> Arrays.asList(line.split(";")).iterator());
 		ZonedDateTime _t0 = null;
 		try {
@@ -74,7 +74,7 @@ public class MapContractsJob_V0_0 {
 		}
 
 		// import risk factor data, map to connector
-		JavaRDD<String> riskFactor = sparkSession.read().textFile(riskfactorsPath).javaRDD(); // contractdata
+		JavaRDD<String> riskFactor = sparkSession.read().textFile(riskfactorsPath).javaRDD(); 
 		JavaPairRDD<String, String[]> riskFactorRDD = riskFactor
 				.mapToPair(temp -> new Tuple2<String, String[]>(temp.split(";")[0], temp.split(";")));
 
